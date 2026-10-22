@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Sign in to the Voltix employee workspace for in-store point of sale and inventory management.">
+  <title>Sign In | VOLTIX</title>
+  <link rel="stylesheet" href="css/auth.css">
+  <script src="js/auth.js" defer></script>
+</head>
+<body class="auth-page">
+  <a class="skip-link" href="#email">Skip to sign in</a>
+
+  <main class="auth-layout">
+    <section class="brand-panel" aria-labelledby="brand-heading">
+      <div class="brand" aria-label="Voltix">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-wordmark">VOLTIX<span class="brand-period">.</span></span>
+      </div>
+
+      <div class="brand-copy">
+        <p class="eyebrow"><span aria-hidden="true"></span> YOUR STORE, CONNECTED</p>
+        <h2 id="brand-heading">Keep your store<br>moving forward.</h2>
+        <p class="brand-description">From the first sale to the final stock count, bring your store’s everyday work together.</p>
+        <div class="brand-capabilities" aria-label="Store operations">
+          <span>Point of sale</span>
+          <span>Inventory</span>
+          <span>Your team</span>
+        </div>
+      </div>
+
+      <div class="brand-visual" aria-hidden="true">
+        <div class="visual-orbit orbit-outer"></div>
+        <div class="visual-orbit orbit-inner"></div>
+        <div class="visual-crosshair crosshair-horizontal"></div>
+        <div class="visual-crosshair crosshair-vertical"></div>
+        <div class="visual-core"><span class="brand-mark"></span></div>
+        <span class="visual-node node-one"></span>
+        <span class="visual-node node-two"></span>
+        <span class="visual-node node-three"></span>
+      </div>
+
+      <div class="brand-footer">
+        <span>POS &amp; INVENTORY MANAGEMENT</span>
+        <span class="brand-footer-line" aria-hidden="true"></span>
+        <span>Built for your store team.</span>
+      </div>
+    </section>
+
+    <section class="login-panel" aria-labelledby="login-heading">
+      <p class="workspace-label"><span aria-hidden="true"></span> Employee workspace</p>
+
+      <div class="login-card">
+        <header class="login-header">
+          <p class="login-eyebrow">LET’S GET TO WORK</p>
+          <h1 id="login-heading">Welcome back</h1>
+          <p class="login-subtitle">Sign in to your Voltix workspace</p>
+        </header>
+
+        <noscript>
+          <p class="form-feedback" data-state="error">Enable JavaScript in your browser to use this demo sign-in page.</p>
+        </noscript>
+
+        <form id="login-form" method="post" novalidate>
+          <div id="form-feedback" class="form-feedback" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+          <div class="form-field">
+            <label for="email">Email address</label>
+            <div class="input-shell">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+                <path d="m4 7 8 6 8-6"></path>
+              </svg>
+              <input id="email" name="email" type="email" placeholder="you@voltix.test" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required aria-describedby="email-error" aria-invalid="false">
+            </div>
+            <p id="email-error" class="field-error" hidden></p>
+          </div>
+
+          <div class="form-field">
+            <label for="password">Password</label>
+            <div class="input-shell">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <rect x="4" y="10" width="16" height="11" rx="3"></rect>
+                <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                <path d="M12 14v3"></path>
+              </svg>
+              <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required aria-describedby="password-error" aria-invalid="false">
+              <button id="toggle-password" class="password-toggle" type="button" aria-label="Show password" aria-controls="password" aria-pressed="false">Show</button>
+            </div>
+            <p id="password-error" class="field-error" hidden></p>
+          </div>
+
+          <label class="remember-option" for="remember-email">
+            <input id="remember-email" name="remember-email" type="checkbox">
+            <span>Remember email</span>
+          </label>
+
+          <button id="sign-in" class="sign-in-button" type="submit" disabled>
+            <span class="button-spinner" aria-hidden="true"></span>
+            <span id="sign-in-label">Sign In</span>
+            <svg class="button-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M5 12h14m-6-6 6 6-6 6"></path>
+            </svg>
+          </button>
+        </form>
+
+        <p class="staff-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"></path>
+            <path d="m8.5 12 2.5 2.5 4.5-5"></path>
+          </svg>
+          <span>Employee access only. Accounts are managed by your store administrator.</span>
+        </p>
+      </div>
+
+      <footer class="login-footer">
+        <span>VOLTIX &copy; Store operations</span>
+        <span class="demo-badge">PHASE 1 DEMO</span>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
