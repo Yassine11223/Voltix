@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suppliers - Voltix</title>
+  <link rel="stylesheet" href="../css/products-inventory.css">
+</head>
+<body>
+  <div class="vi-shell">
+    <aside class="vi-sidebar" id="sidebar">
+      <div class="vi-brand"><span class="vi-logo">V</span> Voltix</div>
+      <nav class="vi-nav" aria-label="Primary navigation">
+        <div class="vi-nav-label">Workspace</div>
+        <a href="dashboard.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>Dashboard</a>
+        <a href="products.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>Products</a>
+        <a href="inventory.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Inventory</a>
+        <a class="active" href="suppliers.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h16M6 8v11h12V8M8 5h8v3H8z"/></svg>Suppliers</a>
+        <div class="vi-nav-label">Operations</div>
+        <a href="pos.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h2M12 12h2M8 16h8"/></svg>Point of sale</a>
+        <a href="sales.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12M6 12h12M6 19h12"/></svg>Sales history</a>
+      </nav>
+    </aside>
+
+    <main class="vi-main">
+      <header class="vi-topbar"><button class="btn btn-secondary mobile-only" id="menuBtn" type="button">Menu</button><div class="vi-user"><span class="vi-avatar" id="avatar">AM</span><div><strong id="userName"></strong><small id="userRole"></small></div></div></header>
+      <section class="vi-content">
+        <div class="vi-heading"><div><h1>Suppliers</h1><p>Keep vendor relationships and supply coverage organized.</p></div><button class="btn btn-primary" id="addBtn" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add supplier</button></div>
+        <div class="stats" id="stats"></div>
+        <section class="panel"><div class="toolbar"><div class="search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input id="search" aria-label="Search suppliers" placeholder="Search suppliers"></div><select id="status" aria-label="Filter suppliers by status"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div></section>
+        <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Supplier</th><th>Contact</th><th>Phone</th><th>Email</th><th>Products</th><th>Status</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+      </section>
+    </main>
+  </div>
+  <div id="modalRoot" aria-live="polite"></div><div class="toast-region" id="toasts" aria-live="polite"></div>
+  <script src="../js/pi-ui.js"></script><script src="../js/inventory-store.js"></script><script src="../js/suppliers.js"></script>
+</body>
+</html>
