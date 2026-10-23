@@ -139,7 +139,7 @@
     const value = type === 'none' ? 0 : Number(discount?.value);
     if (!['none', 'percent', 'fixed'].includes(type) || !moneyValid(value) ||
         (type === 'percent' && value > 100) || (type === 'fixed' && value > subtotal)) {
-      throw new Error('Use 0–100% or a fixed discount no greater than the subtotal.');
+      throw new Error('Use 0\u2013100% or a fixed discount no greater than the subtotal.');
     }
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) throw new Error('Invalid tax rate.');
     const amount = round2(type === 'percent' ? subtotal * value / 100 : value);

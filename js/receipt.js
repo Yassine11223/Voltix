@@ -12,7 +12,7 @@
     const settings = store.getSettings();
     const refund = type === 'refund';
     const row = (label, value, strong = false) => `<div class="pos-receipt-row${strong ? ' pos-receipt-total' : ''}"><span>${esc(label)}</span><span>${value}</span></div>`;
-    const lines = record.items.map((item) => `<li><strong>${esc(item.name)}</strong>${row(item.quantity + ' × ' + store.formatMoney(item.unitPrice), money(refund ? item.refundAmount : item.lineTotal))}${refund ? `<small>Reason: ${esc(item.reason)}</small>` : ''}</li>`).join('');
+    const lines = record.items.map((item) => `<li><strong>${esc(item.name)}</strong>${row(item.quantity + ' \u00d7 ' + store.formatMoney(item.unitPrice), money(refund ? item.refundAmount : item.lineTotal))}${refund ? `<small>Reason: ${esc(item.reason)}</small>` : ''}</li>`).join('');
     return `<article class="pos-receipt" aria-label="${refund ? 'Refund receipt' : 'Sale receipt'}">
       <header class="pos-receipt-header"><div class="pos-wordmark">VOLTIX</div><strong>${esc(settings.storeName)}</strong>
       ${[settings.storeAddress, settings.storePhone, settings.storeTaxId && 'Tax ID: ' + settings.storeTaxId].filter(Boolean).map((value) => `<div>${esc(value)}</div>`).join('')}
@@ -22,7 +22,7 @@
       ${record.customerName ? row('Customer', esc(record.customerName)) : ''}
       <ul class="pos-receipt-items">${lines}</ul>
       ${refund ? row('TOTAL REFUND', money(record.totalRefund), true) :
-        row('Subtotal', money(record.subtotal)) + row('Discount', '−' + money(record.discount.amount)) +
+        row('Subtotal', money(record.subtotal)) + row('Discount', '\u2212' + money(record.discount.amount)) +
         row('Tax (' + record.tax.rate + '%)', money(record.tax.amount)) + row('TOTAL', money(record.total), true)}
       ${row(refund ? 'Refund method' : 'Payment method', esc(refund ? record.refundMethod : record.payment.method))}
       ${refund ? '<p>Refunds include the original proportional discount and tax, rounded per line.</p>' : row('Tendered', money(record.payment.amountTendered)) + row('Change', money(record.payment.change))}

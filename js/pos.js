@@ -73,7 +73,7 @@
       card.dataset.product = product.id;
       card.disabled = !sellable(product);
       card.setAttribute('aria-label', String(product.name) + ', ' + store.formatMoney(product.price) + ', ' + stock + ' in stock. Add to cart');
-      card.innerHTML = `<strong class="pos-product-name">${esc(product.name)}</strong><span class="pos-product-meta">${esc(product.sku)}<br>${esc(product.category || 'Uncategorized')}</span><span class="pos-product-price">${money(product.price)}</span><span class="pos-badge${stock === 0 ? ' pos-badge-out' : low ? ' pos-badge-low' : ''}">${stock === 0 ? 'Out of stock' : (low ? 'Low stock' : 'In stock') + ' · ' + stock}</span>`;
+      card.innerHTML = `<strong class="pos-product-name">${esc(product.name)}</strong><span class="pos-product-meta">${esc(product.sku)}<br>${esc(product.category || 'Uncategorized')}</span><span class="pos-product-price">${money(product.price)}</span><span class="pos-badge${stock === 0 ? ' pos-badge-out' : low ? ' pos-badge-low' : ''}">${stock === 0 ? 'Out of stock' : (low ? 'Low stock' : 'In stock') + ' \u00b7 ' + stock}</span>`;
       fragment.append(card);
     });
     $('pos-grid').replaceChildren(fragment);
@@ -118,7 +118,7 @@
     $('pos-cart-lines').innerHTML = cart.length ? cart.map((line, index) => {
       const product = productById(line.productId);
       const name = esc(product.name);
-      return `<div class="pos-cart-line" data-line="${esc(line.productId)}"><div class="pos-line-heading"><div><strong>${name}</strong><small>${money(product.price)} each</small></div><button class="pos-text-button" type="button" data-remove="${index}" aria-label="Remove ${name}">Remove</button></div><div class="pos-line-controls"><div class="pos-stepper"><button type="button" data-step="-1" data-index="${index}" aria-label="Decrease ${name}" ${line.quantity <= 1 ? 'disabled' : ''}>−</button><input id="pos-quantity-${index}" type="number" min="1" max="${stockOf(product)}" step="1" value="${line.quantity}" data-quantity="${index}" aria-label="Quantity for ${name}"><button type="button" data-step="1" data-index="${index}" aria-label="Increase ${name}">+</button></div><strong>${money(store.round2(product.price) * line.quantity)}</strong></div></div>`;
+      return `<div class="pos-cart-line" data-line="${esc(line.productId)}"><div class="pos-line-heading"><div><strong>${name}</strong><small>${money(product.price)} each</small></div><button class="pos-text-button" type="button" data-remove="${index}" aria-label="Remove ${name}">Remove</button></div><div class="pos-line-controls"><div class="pos-stepper"><button type="button" data-step="-1" data-index="${index}" aria-label="Decrease ${name}" ${line.quantity <= 1 ? 'disabled' : ''}>\u2212</button><input id="pos-quantity-${index}" type="number" min="1" max="${stockOf(product)}" step="1" value="${line.quantity}" data-quantity="${index}" aria-label="Quantity for ${name}"><button type="button" data-step="1" data-index="${index}" aria-label="Increase ${name}">+</button></div><strong>${money(store.round2(product.price) * line.quantity)}</strong></div></div>`;
     }).join('') : '<p class="pos-cart-empty">Your cart is ready.<br>Select a product to start a sale.</p>';
     $('pos-cart-announcement').textContent = count + ' item' + (count === 1 ? '' : 's') + ' in cart.';
     updateSummary();
@@ -149,7 +149,7 @@
     $('pos-discount-value').setAttribute('aria-invalid', String(!valid));
     $('pos-discount-error').textContent = discountError;
     $('pos-subtotal').textContent = store.formatMoney(totals.subtotal);
-    $('pos-discount-amount').textContent = '−' + store.formatMoney(totals.discount.amount);
+    $('pos-discount-amount').textContent = '\u2212' + store.formatMoney(totals.discount.amount);
     $('pos-tax-label').textContent = 'Tax (' + settings.taxRate + '%)';
     $('pos-tax').textContent = store.formatMoney(totals.tax.amount);
     $('pos-total').textContent = store.formatMoney(totals.total);
@@ -162,8 +162,8 @@
     $('pos-payment-error').textContent = cash && !paymentValid && cart.length ? 'Enter an amount that covers the total.' : '';
     $('pos-change').textContent = store.formatMoney(Number.isFinite(tendered) ? Math.max(0, tendered - totals.total) : 0);
     $('pos-complete').disabled = processing || !cart.length || !valid || !paymentValid;
-    $('pos-complete').textContent = processing ? 'Processing…' : 'Complete sale';
-    $('pos-drawer-summary').textContent = itemCount() + ' items · ' + store.formatMoney(totals.total);
+    $('pos-complete').textContent = processing ? 'Processing\u2026' : 'Complete sale';
+    $('pos-drawer-summary').textContent = itemCount() + ' items \u00b7 ' + store.formatMoney(totals.total);
   }
 
   function changeQuantity(productId, requested, focusAction) {
@@ -221,7 +221,7 @@
     document.querySelector('.pos-browser').inert = value || $('pos-cart').classList.contains('pos-cart-open');
     $('pos-clear').disabled = value || !cart.length;
     $('pos-complete').disabled = true;
-    $('pos-complete').textContent = value ? 'Processing…' : 'Complete sale';
+    $('pos-complete').textContent = value ? 'Processing\u2026' : 'Complete sale';
     $('pos-cart').setAttribute('aria-busy', String(value));
   }
 
@@ -280,7 +280,7 @@
     finally { seeding = false; refresh(); }
   }
 
-  $('pos-subtitle').textContent = user.name + ' · ' + new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  $('pos-subtitle').textContent = user.name + ' \u00b7 ' + new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   $('pos-search').addEventListener('input', () => {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => { query = $('pos-search').value.trim().toLowerCase(); renderProducts(); }, SEARCH_DELAY_MS);

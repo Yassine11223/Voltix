@@ -3,10 +3,12 @@
   const store = window.VoltixPOSStore;
   const { RETURN_WINDOW_DAYS, STAFF_CAN_PROCESS_RETURNS } = store.constants;
   const REASONS = Object.freeze(['Defective', 'Wrong item', 'Customer changed mind', 'Damaged in store', 'Other']);
+  const DEFAULT_REASON = 'Customer changed mind';
   const DAY_MS = 86400000;
   const MAX_QUANTITY = 1e6;
   const saleId = (value) => /^S-\d{6}$/i.test(String(value ?? '').trim()) ? String(value).trim().toUpperCase() : null;
   const defaultRestock = (reason) => !['Defective', 'Damaged in store'].includes(reason);
+  const newChoice = () => ({ quantity: '0', reason: DEFAULT_REASON, restock: defaultRestock(DEFAULT_REASON), restockEdited: false });
   /** Reject non-integers; clamp digit-only huge values to the live returnable amount. */
   function parseQuantity(value, maximum) {
     if (!/^\d+$/.test(String(value))) return null;
@@ -87,7 +89,7 @@
     sales.forEach((sale) => {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'pos-button returns-pick'; button.dataset.sale = sale.id;
-      button.innerHTML = `<strong>${esc(sale.id)} · ${money(sale.total)}</strong><small>${esc(store.formatDate(sale.date))} · ${esc(sale.cashierName)}</small><small>${esc(String(sale.status || '').replaceAll('_', ' '))}</small>`;
+      button.innerHTML = `<strong>${esc(sale.id)} \u00b7 ${money(sale.total)}</strong><small>${esc(store.formatDate(sale.date))} \u00b7 ${esc(sale.cashierName)}</small><small>${esc(String(sale.status || '').replaceAll('_', ' '))}</small>`;
       fragment.append(button);
     });
     $('returns-recent').replaceChildren(fragment);
@@ -121,7 +123,7 @@
     $('returns-search-error').textContent = !id ? 'Enter a valid sale ID, such as S-000001.' : !sale ? 'Sale not found.' : '';
     if (!sale) { selected = null; choices.clear(); renderSelected(); updateButtons(); return; }
     if (selected?.id !== id || completed) {
-      choices = new Map(sale.items.map((line) => [line.productId, { quantity: '0', reason: 'Customer changed mind', restock: true }]));
+      choices = new Map(sale.items.map((line) => [line.productId, newChoice()]));
       $('returns-override').checked = false;
       $('returns-method').value = sale.payment?.method === 'card' ? 'card' : 'cash';
       $('returns-note').value = '';
@@ -137,7 +139,7 @@
       const items = requestedItems();
       const refund = store.calcReturnRefund(selected, items, store.getReturns());
       summaryValid = true;
-      $('returns-summary').innerHTML = `<ul class="returns-summary">${items.map((item, index) => `<li><div><strong>${esc(selected.items.find((line) => line.productId === item.productId).name)}</strong><small>${item.quantity} × ${money(selected.items.find((line) => line.productId === item.productId).unitPrice)} · ${esc(item.reason)} · ${item.restock ? 'Return to stock' : 'No restock'}</small></div><strong>${money(refund.amounts[index])}</strong></li>`).join('')}</ul><div class="returns-total"><span>Total refund</span><span>${money(refund.totalRefund)}</span></div>`;
+      $('returns-summary').innerHTML = `<ul class="returns-summary">${items.map((item, index) => `<li><div><strong>${esc(selected.items.find((line) => line.productId === item.productId).name)}</strong><small>${item.quantity} \u00d7 ${money(selected.items.find((line) => line.productId === item.productId).unitPrice)} \u00b7 ${esc(item.reason)} \u00b7 ${item.restock ? 'Return to stock' : 'No restock'}</small></div><strong>${money(refund.amounts[index])}</strong></li>`).join('')}</ul><div class="returns-total"><span>Total refund</span><span>${money(refund.totalRefund)}</span></div>`;
       return refund;
     } catch (error) {
       summaryValid = false;
@@ -161,7 +163,7 @@
     selected = live; revision = next;
     const previous = choices;
     choices = new Map(live.items.map((line) => {
-      const value = previous.get(line.productId) || { quantity: '0', reason: 'Customer changed mind', restock: true };
+      const value = previous.get(line.productId) || newChoice();
       return [line.productId, { ...value, quantity: String(Math.min(parseQuantity(value.quantity, MAX_QUANTITY) || 0, available(line))) }];
     }));
     if (confirmDialog.open) confirmDialog.close();
@@ -205,7 +207,7 @@
   function submit() {
     if (submitting || completed || !confirmDialog.open) return;
     if (!revalidate() || !validItems()) return;
-    submitting = true; updateButtons(); $('returns-submit').textContent = 'Processing…';
+    submitting = true; updateButtons(); $('returns-submit').textContent = 'Processing...';
     const payload = { saleId: selected.id, items: requestedItems(), refundMethod: $('returns-method').value,
       note: $('returns-note').value, overrideReturnWindow: user.role === 'admin' && $('returns-override').checked, expectedRevision: revision };
     try {
@@ -255,23 +257,28 @@
     $('returns-search-error').textContent = ''; $('returns-search').removeAttribute('aria-invalid'); updateButtons();
   });
   $('returns-recent').addEventListener('click', (event) => { const button = event.target.closest('[data-sale]'); if (button) loadSale(button.dataset.sale); });
-  $('returns-items').addEventListener('input', (event) => {
+  function updateItem(event) {
     const input = event.target; const row = input.closest('[data-index]');
     if (!row || !selected) return;
     const line = selected.items[Number(row.dataset.index)]; const value = choices.get(line.productId);
-    if (input.dataset.field === 'quantity') {
+    if (event.type === 'input' && input.dataset.field === 'quantity') {
       const parsed = parseQuantity(input.value, available(line));
       if (parsed !== null) input.value = String(parsed);
       value.quantity = input.value;
       input.setAttribute('aria-invalid', String(parsed === null));
-    } else if (input.dataset.field === 'reason') {
+    } else if (event.type === 'change' && input.dataset.field === 'reason') {
       value.reason = input.value;
-      value.restock = store.getProducts().some((product) => product.id === line.productId) && defaultRestock(value.reason);
+      if (!value.restockEdited) value.restock = store.getProducts().some((product) => product.id === line.productId) && defaultRestock(value.reason);
       row.querySelector('[data-field="restock"]').checked = value.restock;
-    } else if (input.dataset.field === 'restock') value.restock = input.checked;
+    } else if (event.type === 'change' && input.dataset.field === 'restock') {
+      value.restock = input.checked;
+      value.restockEdited = true;
+    } else return;
     $('returns-items-error').textContent = validItems() ? '' : 'Choose at least one item. Quantities must be whole numbers from 0 to the returnable amount.';
     updateButtons();
-  });
+  }
+  $('returns-items').addEventListener('input', updateItem);
+  $('returns-items').addEventListener('change', updateItem);
   $('returns-override').addEventListener('change', updateButtons);
   $('returns-back').addEventListener('click', () => showStep(Math.max(1, step - 1)));
   $('returns-next').addEventListener('click', () => { if (revalidate() && (step === 1 || validItems())) showStep(Math.min(3, step + 1)); });

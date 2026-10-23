@@ -41,9 +41,13 @@
         (!filters.payment || sale.payment?.method === filters.payment) && (!filters.status || sale.status === filters.status);
     });
   }
-  function calcStats(sales) {
-    const revenue = store.round2(sales.reduce((sum, sale) => sum + amount(sale.total), 0));
-    return { count: sales.length, revenue, average: sales.length ? store.round2(revenue / sales.length) : 0,
+  /** Statistics use only the sales already allowed by visibility and filters. */
+  function calcStats(sales, returns = []) {
+    const saleIds = new Set(sales.map((sale) => sale.id));
+    const grossSales = store.round2(sales.reduce((sum, sale) => sum + amount(sale.total), 0));
+    const refunds = store.round2(returns.reduce((sum, record) => sum + (saleIds.has(record.saleId) ? amount(record.totalRefund) : 0), 0));
+    const netRevenue = store.round2(grossSales - refunds);
+    return { count: sales.length, grossSales, refunds, netRevenue, average: sales.length ? store.round2(grossSales / sales.length) : 0,
       items: sales.reduce((sum, sale) => sum + itemCount(sale), 0) };
   }
   function sortSales(sales, field = 'date', direction = 'desc') {
@@ -117,9 +121,11 @@
     $('sales-date-error').textContent = invalidRange ? 'Start date must be on or before end date.' : '';
     $('sales-to').setAttribute('aria-invalid', String(Boolean(invalidRange)));
     const filtered = filteredSales();
-    const stats = calcStats(filtered);
+    const stats = calcStats(filtered, store.getReturns());
     $('sales-stat-count').textContent = stats.count.toLocaleString();
-    $('sales-stat-revenue').textContent = store.formatMoney(stats.revenue);
+    $('sales-stat-gross').textContent = store.formatMoney(stats.grossSales);
+    $('sales-stat-refunds').textContent = store.formatMoney(stats.refunds);
+    $('sales-stat-net').textContent = store.formatMoney(stats.netRevenue);
     $('sales-stat-average').textContent = store.formatMoney(stats.average);
     $('sales-stat-items').textContent = stats.items.toLocaleString();
     const result = paginate(sortSales(filtered, sortField, sortDirection), page);
@@ -141,15 +147,15 @@
     $('sales-empty').hidden = filtered.length > 0;
     $('sales-pagination').hidden = !filtered.length;
     $('sales-results').textContent = filtered.length + ' sale' + (filtered.length === 1 ? '' : 's') + ' matching your filters';
-    $('sales-page-summary').textContent = `Page ${page} of ${result.pages} · ${result.start + 1}–${Math.min(result.start + SALES_PAGE_SIZE, filtered.length)} of ${filtered.length}`;
+    $('sales-page-summary').textContent = `Page ${page} of ${result.pages} \u00b7 ${result.start + 1}\u2013${Math.min(result.start + SALES_PAGE_SIZE, filtered.length)} of ${filtered.length}`;
     $('sales-previous').disabled = page <= 1;
     $('sales-next').disabled = page >= result.pages;
     $('sales-export').hidden = user.role !== 'admin';
     $('sales-export').disabled = !filtered.length;
     $('sales-date-column').setAttribute('aria-sort', sortField === 'date' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
     $('sales-total-column').setAttribute('aria-sort', sortField === 'total' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
-    $('sales-sort-date').textContent = 'Date / time' + (sortField === 'date' ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕');
-    $('sales-sort-total').textContent = 'Total' + (sortField === 'total' ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕');
+    $('sales-sort-date').textContent = 'Date / time' + (sortField === 'date' ? (sortDirection === 'asc' ? ' \u2191' : ' \u2193') : ' \u2195');
+    $('sales-sort-total').textContent = 'Total' + (sortField === 'total' ? (sortDirection === 'asc' ? ' \u2191' : ' \u2193') : ' \u2195');
     $('sales-sort').value = sortField + '-' + sortDirection;
     Array.from($('sales-presets').querySelectorAll('button')).forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.preset === activePreset)));
   }
@@ -159,15 +165,15 @@
     $('sales-detail-title').textContent = 'Sale ' + sale.id;
     const row = (label, value) => `<div class="sales-summary-row"><dt>${esc(label)}</dt><dd>${value}</dd></div>`;
     const returns = sortSales(store.getReturns().filter((record) => record.saleId === sale.id));
-    $('sales-detail-content').innerHTML = `<p class="sales-muted">${esc(store.formatDate(sale.date))} · ${esc(sale.cashierName)}</p>
+    $('sales-detail-content').innerHTML = `<p class="sales-muted">${esc(store.formatDate(sale.date))} \u00b7 ${esc(sale.cashierName)}</p>
       ${badge(sale.status)}${sale.customerName ? `<p>Customer: ${esc(sale.customerName)}</p>` : ''}
-      <h3>Line items</h3><ul class="sales-lines">${linesOf(sale).map((line) => `<li><div><strong>${esc(line.name)}</strong><small>SKU: ${esc(line.sku)} · ${esc(line.quantity)} × ${money(line.unitPrice)}</small><small>Returned: ${esc(line.returnedQty ?? 0)}</small></div><strong>${money(line.lineTotal)}</strong></li>`).join('')}</ul>
+      <h3>Line items</h3><ul class="sales-lines">${linesOf(sale).map((line) => `<li><div><strong>${esc(line.name)}</strong><small>SKU: ${esc(line.sku)} \u00b7 ${esc(line.quantity)} \u00d7 ${money(line.unitPrice)}</small><small>Returned: ${esc(line.returnedQty ?? 0)}</small></div><strong>${money(line.lineTotal)}</strong></li>`).join('')}</ul>
       <dl class="sales-summary">${row('Subtotal', money(sale.subtotal))}${row('Discount', money(sale.discount?.amount))}
       ${row('Tax (' + (sale.tax?.rate ?? 0) + '%)', money(sale.tax?.amount))}${row('Total', `<strong>${money(sale.total)}</strong>`)}
       ${row('Payment', esc(sale.payment?.method === 'cash' ? 'Cash' : sale.payment?.method === 'card' ? 'Card' : 'Unknown'))}
       ${row('Tendered', money(sale.payment?.amountTendered))}${row('Change', money(sale.payment?.change))}</dl>
       ${sale.note ? `<p class="sales-note">Note: ${esc(sale.note)}</p>` : ''}
-      <h3>Linked returns</h3>${returns.length ? `<ul class="sales-returns">${returns.map((record) => `<li><strong>${esc(record.id)}</strong><span>${esc(store.formatDate(record.date))}</span><span>${money(record.totalRefund)} · ${esc(record.refundMethod)}</span><small>Processed by ${esc(record.processedByName)}</small></li>`).join('')}</ul>` : '<p class="sales-muted">No returns recorded for this sale.</p>'}`;
+      <h3>Linked returns</h3>${returns.length ? `<ul class="sales-returns">${returns.map((record) => `<li><strong>${esc(record.id)}</strong><span>${esc(store.formatDate(record.date))}</span><span>${money(record.totalRefund)} \u00b7 ${esc(record.refundMethod)}</span><small>Processed by ${esc(record.processedByName)}</small></li>`).join('')}</ul>` : '<p class="sales-muted">No returns recorded for this sale.</p>'}`;
     const returnLink = $('sales-process-return');
     returnLink.hidden = !canProcessReturn(sale, user);
     if (returnLink.hidden) returnLink.removeAttribute('href');

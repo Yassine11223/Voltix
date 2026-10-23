@@ -7,7 +7,7 @@
 .sales-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .sales-actions a { text-decoration: none; }
 .sales-staff-note { border-left: 3px solid var(--color-blue); padding: 12px 16px; background: #edf2ff; border-radius: 8px; }
-.sales-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.sales-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .sales-stat { padding: 20px; }
 .sales-stat p { margin: 0 0 8px; color: var(--color-muted); font-size: 12px; }
 .sales-stat strong { display: block; color: var(--color-navy); font-size: clamp(20px, 2.2vw, 28px); overflow-wrap: anywhere; }

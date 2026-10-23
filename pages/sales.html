@@ -72,7 +72,9 @@
         <p id="sales-staff-note" class="sales-staff-note" hidden>You are viewing your own recent sales</p>
         <section class="sales-stats" aria-label="Statistics for filtered sales">
           <article class="panel sales-stat"><p>Number of sales</p><strong id="sales-stat-count">0</strong></article>
-          <article class="panel sales-stat"><p>Revenue</p><strong id="sales-stat-revenue">$0.00</strong></article>
+          <article class="panel sales-stat"><p>Gross sales</p><strong id="sales-stat-gross">$0.00</strong></article>
+          <article class="panel sales-stat"><p>Refunds</p><strong id="sales-stat-refunds">$0.00</strong></article>
+          <article class="panel sales-stat"><p>Net revenue</p><strong id="sales-stat-net">$0.00</strong></article>
           <article class="panel sales-stat"><p>Average sale</p><strong id="sales-stat-average">$0.00</strong></article>
           <article class="panel sales-stat"><p>Items sold</p><strong id="sales-stat-items">0</strong></article>
         </section>
@@ -91,7 +93,7 @@
           <div class="panel-heading"><div><h2 id="sales-history-title">Sales history</h2><p id="sales-results" class="sales-results" role="status" aria-live="polite"></p></div></div>
           <div class="sales-mobile-sort sales-field"><label for="sales-sort">Sort sales</label><select id="sales-sort" class="pos-input"><option value="date-desc">Date: newest first</option><option value="date-asc">Date: oldest first</option><option value="total-desc">Total: highest first</option><option value="total-asc">Total: lowest first</option></select></div>
           <div id="sales-table-region" class="sales-table-region" role="region" aria-label="Sales history table" tabindex="0">
-            <table class="sales-table"><caption class="sr-only">Filtered sales, ten per page</caption><thead><tr><th scope="col">Sale ID</th><th id="sales-date-column" scope="col" aria-sort="descending"><button id="sales-sort-date" class="sales-sort-button" type="button">Date / time ↓</button></th><th scope="col">Cashier</th><th scope="col">Items</th><th scope="col">Payment</th><th id="sales-total-column" scope="col" aria-sort="none"><button id="sales-sort-total" class="sales-sort-button" type="button">Total ↕</button></th><th scope="col">Status</th><th scope="col">Details</th></tr></thead><tbody id="sales-rows"></tbody></table>
+            <table class="sales-table"><caption class="sr-only">Filtered sales, ten per page</caption><thead><tr><th scope="col">Sale ID</th><th id="sales-date-column" scope="col" aria-sort="descending"><button id="sales-sort-date" class="sales-sort-button" type="button">Date / time &darr;</button></th><th scope="col">Cashier</th><th scope="col">Items</th><th scope="col">Payment</th><th id="sales-total-column" scope="col" aria-sort="none"><button id="sales-sort-total" class="sales-sort-button" type="button">Total &varr;</button></th><th scope="col">Status</th><th scope="col">Details</th></tr></thead><tbody id="sales-rows"></tbody></table>
           </div>
           <div id="sales-empty" class="pos-empty" hidden><h2>No sales to show</h2><p class="sales-muted">Try different filters or record a new sale at the POS.</p><a class="button button-primary" href="pos.html">Open POS</a></div>
           <nav id="sales-pagination" class="sales-pagination" aria-label="Sales pagination"><span id="sales-page-summary" class="sales-page-summary" aria-live="polite"></span><div class="sales-actions"><button id="sales-previous" class="pos-button" type="button">Previous</button><button id="sales-next" class="pos-button" type="button">Next</button></div></nav>
