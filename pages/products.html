@@ -1,5 +1,41 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Products  Voltix</title><link rel="stylesheet" href="../css/products-inventory.css"></head><body><div class="vi-shell"><aside class="vi-sidebar" id="sidebar"><div class="vi-brand"><span class="vi-logo">V</span> Voltix</div><nav class="vi-nav"><div class="vi-nav-label">Workspace</div><a href="dashboard.html"><span></span> Dashboard</a><a class="active" href="products.html"><span></span> Products</a><a href="inventory.html"><span></span> Inventory</a><a href="suppliers.html"><span></span> Suppliers</a><div class="vi-nav-label">Operations</div><a href="pos.html"><span></span> Point of sale</a><a href="sales.html"><span></span> Sales history</a></nav></aside><main class="vi-main"><header class="vi-topbar"><button class="btn btn-secondary mobile-only" id="menuBtn">Menu</button><div class="vi-user"><span class="vi-avatar" id="avatar">AM</span><div><strong id="userName">Alex Morgan</strong><small id="userRole">Inventory Manager</small></div></div></header><section class="vi-content"><div class="vi-heading"><div><h1>Products</h1><p>Manage your catalog, pricing, and availability.</p></div><div class="vi-actions"><button class="btn btn-primary" id="addProductBtn"> Add product</button></div></div><div class="stats" id="stats"></div><section class="panel"><div class="toolbar"><div class="search"><span></span><input id="search" aria-label="Search products" placeholder="Search by name, SKU, or category"></div><select id="categoryFilter" aria-label="Filter by category"><option value="">All categories</option></select><select id="supplierFilter" aria-label="Filter by supplier"><option value="">All suppliers</option></select><select id="statusFilter" aria-label="Filter by stock status"><option value="">All stock status</option><option value="in-stock">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><select id="sort" aria-label="Sort products"><option value="name">Name AZ</option><option value="newest">Newest</option><option value="price">Price highlow</option><option value="stock">Stock lowhigh</option></select><button class="btn btn-secondary" id="resetBtn">Reset</button></div></section><section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Product</th><th>Category</th><th>Supplier</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead><tbody id="productRows"></tbody></table></div><div class="pagination" id="pagination"></div></section></section></main></div><div id="modalRoot" aria-live="polite"></div><div class="toast-region" id="toasts" aria-live="polite"></div><script src="../js/inventory-store.js"></script><script src="../js/products.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Products - Voltix</title>
+  <link rel="stylesheet" href="../css/products-inventory.css">
+</head>
+<body>
+  <div class="vi-shell">
+    <aside class="vi-sidebar" id="sidebar">
+      <div class="vi-brand"><span class="vi-logo">V</span> Voltix</div>
+      <nav class="vi-nav" aria-label="Primary navigation">
+        <div class="vi-nav-label">Workspace</div>
+        <a href="dashboard.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>Dashboard</a>
+        <a class="active" href="products.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>Products</a>
+        <a href="inventory.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Inventory</a>
+        <a href="suppliers.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h16M6 8v11h12V8M8 5h8v3H8z"/></svg>Suppliers</a>
+        <div class="vi-nav-label">Operations</div>
+        <a href="pos.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h2M12 12h2M16 12h0M8 16h8"/></svg>Point of sale</a>
+        <a href="sales.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12M6 12h12M6 19h12"/></svg>Sales history</a>
+      </nav>
+    </aside>
 
-
-
-
+    <main class="vi-main">
+      <header class="vi-topbar">
+        <button class="btn btn-secondary mobile-only" id="menuBtn" type="button">Menu</button>
+        <div class="vi-user"><span class="vi-avatar" id="avatar">AM</span><div><strong id="userName">Alex Morgan</strong><small id="userRole">Inventory Manager</small></div></div>
+      </header>
+      <section class="vi-content">
+        <div class="vi-heading"><div><h1>Products</h1><p>Manage your catalog, pricing, and availability.</p></div><div class="vi-actions"><button class="btn btn-primary" id="addProductBtn" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add product</button></div></div>
+        <div class="stats" id="stats"></div>
+        <section class="panel"><div class="toolbar"><div class="search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input id="search" aria-label="Search products" placeholder="Search by name, SKU, or category"></div><select id="categoryFilter" aria-label="Filter by category"><option value="">All categories</option></select><select id="supplierFilter" aria-label="Filter by supplier"><option value="">All suppliers</option></select><select id="statusFilter" aria-label="Filter by stock status"><option value="">All stock status</option><option value="in-stock">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option></select><select id="sort" aria-label="Sort products"><option value="name">Name A-Z</option><option value="newest">Newest</option><option value="price">Price high-low</option><option value="stock">Stock low-high</option></select><button class="btn btn-secondary" id="resetBtn" type="button">Reset</button></div></section>
+        <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Product</th><th>Category</th><th>Supplier</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead><tbody id="productRows"></tbody></table></div><div class="pagination" id="pagination"></div></section>
+      </section>
+    </main>
+  </div>
+  <div id="modalRoot" aria-live="polite"></div><div class="toast-region" id="toasts" aria-live="polite"></div>
+  <script src="../js/pi-ui.js"></script><script src="../js/inventory-store.js"></script><script src="../js/products.js"></script>
+</body>
+</html>

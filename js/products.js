@@ -1,14 +1,121 @@
-(function(){'use strict';const S=window.VoltixInventory;let page=1,pageSize=10,editing=null,products=[];const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const supplierName=id=>(S.getSuppliers().find(x=>x.id===id)||{}).name||'Unassigned';const toast=(msg,type='success')=>{const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;$('#toasts').append(el);setTimeout(()=>el.remove(),3200)};function status(p){const x=S.getStockStatus(p);return `<span class="badge ${x==='in-stock'?'badge-success':x==='low'?'badge-warning':'badge-danger'}">${x==='in-stock'?'In stock':x==='low'?'Low stock':'Out of stock'}</span>`}function render(){products=S.getProducts();const q=$('#search').value.toLowerCase(),cat=$('#categoryFilter').value,sup=$('#supplierFilter').value,st=$('#statusFilter').value,sort=$('#sort').value;let rows=products.filter(p=>true&&(p.name+' '+p.sku+' '+p.category).toLowerCase().includes(q)&&(!cat||p.category===cat)&&(!sup||p.supplier===sup)&&(!st||S.getStockStatus(p)===st));rows.sort((a,b)=>sort==='price'?b.price-a.price:sort==='stock'?a.stock-b.stock:sort==='newest'?new Date(b.createdAt)-new Date(a.createdAt):a.name.localeCompare(b.name));const total=rows.length,pages=Math.max(1,Math.ceil(total/pageSize));page=Math.min(page,pages);const visible=rows.slice((page-1)*pageSize,page*pageSize);$('#productRows').innerHTML=visible.length?visible.map(p=>`<tr><td class="subtle">${esc(p.id)}</td><td><div class="product-name">${esc(p.name)}</div><div class="subtle">${esc(p.sku)}</div></td><td>${esc(p.category)}</td><td>${esc(supplierName(p.supplier))}</td><td>${S.formatCurrency(p.price)}</td><td><div>${p.stock} ${status(p)}</div></td><td><div class="row-actions"><button class="icon-btn" title="Edit" data-act="edit" data-id="${p.id}">Edit</button><button class="icon-btn" title="Archive" data-act="archive" data-id="${p.id}">${p.status==='archived'?'Restore':'Archive'}</button><button class="icon-btn" title="Delete" data-act="delete" data-id="${p.id}">Delete</button></div></td></tr>`).join(''):`<tr><td colspan="7"><div class="empty"><h3>No products found</h3><p>Try adjusting your filters or add a new product.</p><button class="btn btn-primary" id="emptyAdd">Add product</button></div></td></tr>`;$('#pagination').innerHTML=`<span>Showing ${total?((page-1)*pageSize+1):0}${Math.min(page*pageSize,total)} of ${total}</span><div class="pagination-controls"><select id="pageSize" aria-label="Page size"><option ${pageSize===10?'selected':''}>10</option><option ${pageSize===25?'selected':''}>25</option><option ${pageSize===50?'selected':''}>50</option></select><button ${page<=1?'disabled':''} id="prev"></button><span>Page ${page} of ${pages}</span><button ${page>=pages?'disabled':''} id="next"></button></div>`;$('#stats').innerHTML=`<div class="stat-card"><span class="label">Total products</span><strong>${products.filter(p=>p.status==='active').length}</strong><span class="trend">Catalog items</span></div><div class="stat-card"><span class="label">Total stock units</span><strong>${products.reduce((a,p)=>a+p.stock,0).toLocaleString()}</strong><span class="trend">Across all SKUs</span></div><div class="stat-card"><span class="label">Low stock</span><strong>${S.getLowStockProducts().filter(p=>p.stock>0).length}</strong><span class="trend">Needs attention</span></div><div class="stat-card"><span class="label">Inventory value</span><strong>${S.formatCurrency(products.reduce((a,p)=>a+p.stock*p.cost,0))}</strong><span class="trend">At cost</span></div>`}
-function filters(){const cats=[...new Set(S.getProducts().map(p=>p.category))].sort();$('#categoryFilter').innerHTML='<option value="">All categories</option>'+cats.map(x=>`<option>${esc(x)}</option>`).join('');$('#supplierFilter').innerHTML='<option value="">All suppliers</option>'+S.getSuppliers().map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}
-function openForm(product){editing=product;$('#modalRoot').innerHTML=`<div class="modal-backdrop" id="backdrop"><form class="modal" id="productForm" role="dialog" aria-modal="true" aria-labelledby="productModalTitle"><div class="modal-header"><h2 id="productModalTitle">${product?'Edit product':'Add product'}</h2><button type="button" class="close" data-close></button></div><div class="modal-body"><div class="form-grid"><div class="field"><label for="fName">Product name</label><input id="fName" required value="${esc(product?.name)}"><span class="error" data-error="name"></span></div><div class="field"><label for="fSku">SKU</label><input id="fSku" required value="${esc(product?.sku)}"><span class="error" data-error="sku"></span></div><div class="field"><label for="fCategory">Category</label><input id="fCategory" list="categoryList" required value="${esc(product?.category)}"><datalist id="categoryList">${[...new Set(S.getProducts().map(p=>p.category))].map(x=>`<option value="${esc(x)}">`).join('')}</datalist><span class="error" data-error="category"></span></div><div class="field"><label for="fSupplier">Supplier</label><select id="fSupplier"><option value="">Select supplier</option>${S.getSuppliers().map(x=>`<option value="${x.id}" ${product?.supplier===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label for="fPrice">Selling price</label><input id="fPrice" type="number" min="0.01" step="0.01" required value="${product?.price??''}"><span class="error" data-error="price"></span></div><div class="field"><label for="fCost">Cost</label><input id="fCost" type="number" min="0" step="0.01" value="${product?.cost??''}"><span class="error" data-error="cost"></span></div>${product?'':'<div class="field"><label for="fStock">Initial stock</label><input id="fStock" type="number" min="0" step="1" value="0"><span class="error" data-error="stock"></span></div>'}<div class="field"><label for="fThreshold">Low-stock threshold</label><input id="fThreshold" type="number" min="0" step="1" value="${product?.lowStockThreshold??5}"><span class="error" data-error="threshold"></span></div><div class="field full"><label for="fDescription">Description <span class="hint">Optional</span></label><textarea id="fDescription">${esc(product?.description)}</textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-close>Cancel</button><button class="btn btn-primary" id="saveBtn">${product?'Save changes':'Add product'}</button></div></form></div>`;$('#fName').focus();$('#productForm').addEventListener('submit',submit);$('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.matches('[data-close]'))close()});document.addEventListener('keydown',escClose,{once:true})}
-function escClose(e){if(e.key==='Escape')close()}function close(){$('#modalRoot').innerHTML='';editing=null}function submit(e){e.preventDefault();const isEdit=Boolean(editing);const data={name:$('#fName').value.trim(),sku:$('#fSku').value.trim(),category:$('#fCategory').value.trim(),supplier:$('#fSupplier').value,cost:$('#fCost').value,price:$('#fPrice').value,stock:editing?editing.stock:$('#fStock').value,lowStockThreshold:$('#fThreshold').value,description:$('#fDescription').value};const result=isEdit?S.updateProduct(editing.id,data):S.addProduct(data);if(!result.ok){toast(result.error,'error');return}close();filters();render();toast(isEdit?'Product updated':'Product added')}
-function confirmAction(action,p){$('#modalRoot').innerHTML=`<div class="modal-backdrop" id="confirm"><div class="modal"><div class="modal-header"><h2>${action==='delete'?'Delete product':'Archive product'}</h2><button class="close" data-close></button></div><div class="modal-body"><p>Are you sure you want to ${action} <strong>${esc(p.name)}</strong>?</p><p class="hint">${action==='delete'?'Deleting removes this catalog record. If it has sales history, archiving is safer.':'Archived products stay in history but are hidden from active catalog views.'}</p></div><div class="modal-footer"><button class="btn btn-secondary" data-close>Cancel</button><button class="btn ${action==='delete'?'btn-danger':'btn-primary'}" id="confirmBtn">${action[0].toUpperCase()+action.slice(1)}</button></div></div></div>`;$('#confirm').addEventListener('click',e=>{if(e.target.matches('[data-close]')||e.target.id==='confirm')close();if(e.target.id==='confirmBtn'){const r=action==='delete'?S.deleteProduct(p.id):S.archiveProduct(p.id);r.ok?(close(),render(),toast(`Product ${action}d`)):toast(r.error,'error')}})}
-document.addEventListener('DOMContentLoaded',()=>{const u=S.getCurrentUser();$('#userName').textContent=u.name;$('#userRole').textContent=u.role;$('#avatar').textContent=u.name.split(' ').map(x=>x[0]).slice(0,2).join('');if(!S.can('product:write'))$('#addProductBtn').disabled=true;filters();render();['categoryFilter','supplierFilter','statusFilter','sort'].forEach(id=>$('#'+id).addEventListener('change',()=>{page=1;render()}));let t;$('#search').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{page=1;render()},250)});$('#resetBtn').addEventListener('click',()=>{['search','categoryFilter','supplierFilter','statusFilter'].forEach(id=>$('#'+id).value='');$('#sort').value='name';page=1;render()});$('#addProductBtn').addEventListener('click',()=>openForm());document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b){const p=S.getProductById(b.dataset.id);if(b.dataset.act==='edit'&&S.can('product:write'))openForm(p);if(b.dataset.act==='archive'&&S.can('product:write'))confirmAction('archive',p);if(b.dataset.act==='delete'&&S.can('product:write'))confirmAction('delete',p)}if(e.target.id==='emptyAdd')openForm()});$('#pagination').addEventListener('click',e=>{if(e.target.id==='prev'){page--;render()}if(e.target.id==='next'){page++;render()}});$('#pagination').addEventListener('change',e=>{if(e.target.id==='pageSize'){pageSize=Number(e.target.value);page=1;render()}});$('#menuBtn').addEventListener('click',()=>$('#sidebar').classList.toggle('open'));window.addEventListener('voltix:data-changed',()=>{filters();render()})})})();
+(function () {
+  'use strict';
 
+  const store = window.VoltixInventory;
+  const $ = (selector) => document.querySelector(selector);
+  let currentPage = 1;
+  let pageSize = 10;
+  let editingProduct = null;
+  let lastTrigger = null;
 
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[character]));
 
+  const showToast = (message, type = 'success') => {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    $('#toasts').append(toast);
+    window.setTimeout(() => toast.remove(), 3200);
+  };
 
+  const getSupplierName = (supplierId) => store.getSuppliers().find((item) => item.id === supplierId)?.name || 'Unassigned';
 
+  const stockBadge = (product) => {
+    const status = store.getStockStatus(product);
+    const label = status === 'in-stock' ? 'In stock' : status === 'low' ? 'Low stock' : 'Out of stock';
+    const className = status === 'in-stock' ? 'badge-success' : status === 'low' ? 'badge-warning' : 'badge-danger';
+    return `<span class="badge ${className}">${label}</span>`;
+  };
 
+  function renderFilters() {
+    const categories = [...new Set(store.getProducts().map((product) => product.category))].sort();
+    $('#categoryFilter').innerHTML = '<option value="">All categories</option>' + categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('');
+    $('#supplierFilter').innerHTML = '<option value="">All suppliers</option>' + store.getSuppliers().map((supplier) => `<option value="${supplier.id}">${escapeHtml(supplier.name)}</option>`).join('');
+  }
+
+  function filteredProducts() {
+    const query = $('#search').value.trim().toLowerCase();
+    const category = $('#categoryFilter').value;
+    const supplier = $('#supplierFilter').value;
+    const status = $('#statusFilter').value;
+    const sort = $('#sort').value;
+    const products = store.getProducts().filter((product) => {
+      const searchable = `${product.name} ${product.sku} ${product.category}`.toLowerCase();
+      return searchable.includes(query) && (!category || product.category === category) && (!supplier || product.supplier === supplier) && (!status || store.getStockStatus(product) === status);
+    });
+    products.sort((a, b) => sort === 'price' ? b.price - a.price : sort === 'stock' ? a.stock - b.stock : sort === 'newest' ? new Date(b.createdAt) - new Date(a.createdAt) : a.name.localeCompare(b.name));
+    return products;
+  }
+
+  function render() {
+    const products = filteredProducts();
+    const totalPages = Math.max(1, Math.ceil(products.length / pageSize));
+    currentPage = Math.min(currentPage, totalPages);
+    const start = (currentPage - 1) * pageSize;
+    const visible = products.slice(start, start + pageSize);
+
+    $('#productRows').innerHTML = visible.length ? visible.map((product) => `
+      <tr><td class="subtle">${escapeHtml(product.id)}</td><td><div class="product-name">${escapeHtml(product.name)}</div><div class="subtle">${escapeHtml(product.sku)}</div></td><td>${escapeHtml(product.category)}</td><td>${escapeHtml(getSupplierName(product.supplier))}</td><td>${store.formatCurrency(product.price)}</td><td><strong>${product.stock}</strong> ${stockBadge(product)}</td><td><div class="row-actions"><button class="icon-btn" type="button" data-action="edit" data-id="${product.id}">Edit</button><button class="icon-btn" type="button" data-action="archive" data-id="${product.id}">${product.status === 'archived' ? 'Restore' : 'Archive'}</button><button class="icon-btn" type="button" data-action="delete" data-id="${product.id}">Delete</button></div></td></tr>`).join('') : '<tr><td colspan="7"><div class="empty"><h3>No products found</h3><p>Try adjusting your filters or add a new product.</p><button class="btn btn-primary" type="button" id="emptyAdd">Add product</button></div></td></tr>';
+
+    $('#pagination').innerHTML = `<span>Showing ${products.length ? start + 1 : 0}-${Math.min(start + pageSize, products.length)} of ${products.length}</span><div class="pagination-controls"><select id="pageSize" aria-label="Page size"><option value="10" ${pageSize === 10 ? 'selected' : ''}>10</option><option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option><option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option></select><button type="button" id="prev" aria-label="Previous page" ${currentPage === 1 ? 'disabled' : ''}>Prev</button><span>Page ${currentPage} of ${totalPages}</span><button type="button" id="next" aria-label="Next page" ${currentPage === totalPages ? 'disabled' : ''}>Next</button></div>`;
+
+    const allProducts = store.getProducts();
+    $('#stats').innerHTML = `<div class="stat-card"><span class="label">Total products</span><strong>${allProducts.filter((product) => product.status === 'active').length}</strong><span class="trend">Catalog items</span></div><div class="stat-card"><span class="label">Total stock units</span><strong>${allProducts.reduce((sum, product) => sum + product.stock, 0).toLocaleString()}</strong><span class="trend">Across all SKUs</span></div><div class="stat-card"><span class="label">Low stock</span><strong>${store.getLowStockProducts().filter((product) => product.stock > 0).length}</strong><span class="trend">Needs attention</span></div><div class="stat-card"><span class="label">Inventory value</span><strong>${store.formatCurrency(allProducts.reduce((sum, product) => sum + product.stock * product.cost, 0))}</strong><span class="trend">At cost</span></div>`;
+  }
+
+  function closeModal() {
+    $('#modalRoot').replaceChildren();
+    editingProduct = null;
+    if (lastTrigger) lastTrigger.focus();
+  }
+
+  function openProductModal(product = null, trigger = null) {
+    editingProduct = product;
+    lastTrigger = trigger;
+    const categories = [...new Set(store.getProducts().map((item) => item.category))].sort();
+    $('#modalRoot').innerHTML = `<div class="modal-backdrop" id="productBackdrop"><form class="modal" id="productForm" role="dialog" aria-modal="true" aria-labelledby="productModalTitle"><div class="modal-header"><h2 id="productModalTitle">${product ? 'Edit product' : 'Add product'}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label for="fName">Product name</label><input id="fName" required value="${escapeHtml(product?.name)}"><span class="error" data-error="name"></span></div><div class="field"><label for="fSku">SKU</label><input id="fSku" required value="${escapeHtml(product?.sku)}"><span class="error" data-error="sku"></span></div><div class="field"><label for="fCategory">Category</label><input id="fCategory" list="categoryList" required value="${escapeHtml(product?.category)}"><datalist id="categoryList">${categories.map((category) => `<option value="${escapeHtml(category)}">`).join('')}</datalist><span class="error" data-error="category"></span></div><div class="field"><label for="fSupplier">Supplier</label><select id="fSupplier"><option value="">Select supplier</option>${store.getSuppliers().map((supplier) => `<option value="${supplier.id}" ${product?.supplier === supplier.id ? 'selected' : ''}>${escapeHtml(supplier.name)}</option>`).join('')}</select></div><div class="field"><label for="fPrice">Selling price</label><input id="fPrice" type="number" min="0.01" step="0.01" required value="${product?.price ?? ''}"><span class="error" data-error="price"></span></div><div class="field"><label for="fCost">Cost</label><input id="fCost" type="number" min="0" step="0.01" value="${product?.cost ?? ''}"><span class="error" data-error="cost"></span></div>${product ? '' : '<div class="field"><label for="fStock">Initial stock</label><input id="fStock" type="number" min="0" step="1" value="0"><span class="error" data-error="stock"></span></div>'}<div class="field"><label for="fThreshold">Low-stock threshold</label><input id="fThreshold" type="number" min="0" step="1" value="${product?.lowStockThreshold ?? 5}"><span class="error" data-error="threshold"></span></div><div class="field full"><label for="fDescription">Description <span class="hint">Optional</span></label><textarea id="fDescription">${escapeHtml(product?.description)}</textarea></div></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">${product ? 'Save changes' : 'Add product'}</button></div></form></div>`;
+    $('#fName').focus();
+    $('#productForm').addEventListener('submit', saveProduct);
+    $('#productBackdrop').addEventListener('click', (event) => { if (event.target.id === 'productBackdrop' || event.target.matches('[data-close]')) closeModal(); });
+  }
+
+  function saveProduct(event) {
+    event.preventDefault();
+    const isEditing = Boolean(editingProduct);
+    const data = { name: $('#fName').value.trim(), sku: $('#fSku').value.trim(), category: $('#fCategory').value.trim(), supplier: $('#fSupplier').value, price: $('#fPrice').value, cost: $('#fCost').value, stock: isEditing ? editingProduct.stock : $('#fStock').value, lowStockThreshold: $('#fThreshold').value, description: $('#fDescription').value };
+    const result = isEditing ? store.updateProduct(editingProduct.id, data) : store.addProduct(data);
+    if (!result.ok) { showToast(result.error, 'error'); return; }
+    closeModal(); renderFilters(); render(); showToast(isEditing ? 'Product updated' : 'Product added');
+  }
+
+  function confirmProductAction(action, product, trigger) {
+    lastTrigger = trigger;
+    $('#modalRoot').innerHTML = `<div class="modal-backdrop" id="confirmBackdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"><div class="modal-header"><h2 id="confirmTitle">${action === 'delete' ? 'Delete product' : product.status === 'archived' ? 'Restore product' : 'Archive product'}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><p>Are you sure you want to ${action} <strong>${escapeHtml(product.name)}</strong>?</p><p class="hint">${action === 'delete' ? 'Archiving is safer when sales history exists.' : 'Archived products remain in the catalog and can be restored later.'}</p></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-close>Cancel</button><button class="btn ${action === 'delete' ? 'btn-danger' : 'btn-primary'}" type="button" id="confirmAction">${action[0].toUpperCase() + action.slice(1)}</button></div></div></div>`;
+    $('#confirmBackdrop').addEventListener('click', (event) => {
+      if (event.target.id === 'confirmBackdrop' || event.target.matches('[data-close]')) closeModal();
+      if (event.target.id === 'confirmAction') { const result = action === 'delete' ? store.deleteProduct(product.id) : store.archiveProduct(product.id); if (!result.ok) { showToast(result.error, 'error'); return; } closeModal(); render(); showToast(`Product ${action}d`); }
+    });
+    $('#confirmAction').focus();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const user = window.VoltixUI.renderShell('products');
+    document.body.classList.toggle('role-cashier', user.role === 'Cashier');
+    $('#userName').textContent = user.name; $('#userRole').textContent = user.role; $('#avatar').textContent = user.name.split(' ').map((part) => part[0]).slice(0, 2).join('');
+    if (!store.can('product:write')) $('#addProductBtn').disabled = true;
+    renderFilters(); render();
+    ['categoryFilter', 'supplierFilter', 'statusFilter', 'sort'].forEach((id) => $(`#${id}`).addEventListener('change', () => { currentPage = 1; render(); }));
+    let searchTimer; $('#search').addEventListener('input', () => { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(() => { currentPage = 1; render(); }, 250); });
+    $('#resetBtn').addEventListener('click', () => { $('#search').value = ''; $('#categoryFilter').value = ''; $('#supplierFilter').value = ''; $('#statusFilter').value = ''; $('#sort').value = 'name'; currentPage = 1; render(); });
+    $('#addProductBtn').addEventListener('click', (event) => { if (store.can('product:write')) openProductModal(null, event.currentTarget); });
+    $('#menuBtn').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+    document.addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) { const product = store.getProductById(button.dataset.id); if (!store.can('product:write')) return; if (button.dataset.action === 'edit') openProductModal(product, button); if (button.dataset.action === 'archive') confirmProductAction('archive', product, button); if (button.dataset.action === 'delete') confirmProductAction('delete', product, button); } if (event.target.id === 'emptyAdd') openProductModal(); if (event.target.id === 'prev') { currentPage -= 1; render(); } if (event.target.id === 'next') { currentPage += 1; render(); } });
+    $('#pagination').addEventListener('change', (event) => { if (event.target.id === 'pageSize') { pageSize = Number(event.target.value); currentPage = 1; render(); } });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && $('#modalRoot').firstElementChild) closeModal(); });
+    window.addEventListener('voltix:data-changed', () => { renderFilters(); render(); });
+  });
+}());
 
 

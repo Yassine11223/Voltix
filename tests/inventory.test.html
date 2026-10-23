@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltix Inventory Tests</title>
+  <style>body{font:14px system-ui,sans-serif;padding:24px;background:#f5f9ff;color:#1b2b3f}li{margin:8px 0}.pass{color:#1fa971}.fail{color:#e5484d}</style>
+</head>
+<body>
+  <h1>Voltix inventory-store browser tests</h1>
+  <ol id="results"></ol>
+  <script src="../js/pi-ui.js"></script>
+  <script src="../js/inventory-store.js"></script>
+  <script>
+    (function () {
+      const results = document.querySelector('#results');
+      const tests = [];
+      const assert = (name, condition) => tests.push({ name, condition });
+      const store = window.VoltixInventory;
+      const products = store.getProducts();
+      const originalSession = localStorage.getItem('voltix_session');
+      localStorage.setItem('voltix_session', JSON.stringify({ name: 'QA Admin', role: 'System Admin', status: 'active' }));
+      assert('Seeds at least 25 products', products.length >= 25);
+      assert('Uses stock field', products.every((product) => Object.prototype.hasOwnProperty.call(product, 'stock')));
+      assert('Inventory summary is available', typeof store.getInventorySummary().totalUnits === 'number');
+      assert('Category summary is available', Array.isArray(store.getStockByCategory()));
+      const testProduct = { name: 'QA Product', sku: 'QA-TEST-001', category: 'Accessories', supplier: store.getSuppliers()[0].id, price: 10, cost: 5, stock: 4, lowStockThreshold: 2 };
+      const added = store.addProduct(testProduct);
+      assert('Adds a product', added.ok);
+      assert('Rejects duplicate SKU', !store.addProduct(testProduct).ok);
+      const before = store.getProductById(added.data.id).stock;
+      assert('Adjusts stock', store.adjustStock(added.data.id, 2, 'QA')?.ok && store.getProductById(added.data.id).stock === before + 2);
+      assert('Rejects negative result', !store.adjustStock(added.data.id, -999, 'QA').ok);
+      assert('Reduces stock and logs sale', store.reduceStock(added.data.id, 1, 'QA-SALE').ok && store.getMovements({ type: 'sale' }).some((movement) => movement.reference === 'QA-SALE'));
+      assert('Blocks referenced supplier deletion', !store.deleteSupplier(store.getSuppliers()[0].id).ok);
+      const restored = originalSession ? JSON.parse(originalSession) : null;
+      if (restored) localStorage.setItem('voltix_session', JSON.stringify(restored)); else localStorage.removeItem('voltix_session');
+      tests.forEach((test) => { const item = document.createElement('li'); item.className = test.condition ? 'pass' : 'fail'; item.textContent = `${test.condition ? 'PASS' : 'FAIL'} - ${test.name}`; results.append(item); });
+    }());
+  </script>
+</body>
+</html>
