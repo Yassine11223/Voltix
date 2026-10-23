@@ -1,0 +1,335 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>System Settings | VOLTIX</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/settings.css">
+  <script src="../js/app.js" defer></script>
+  <script src="../js/settings.js" defer></script>
+</head>
+<body class="app-page">
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="icon-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+      <symbol id="icon-pos" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="12" rx="2"/><path d="M9 15v4m6-4v4M6 21h12M8 7h8m-8 4h4"/></symbol>
+      <symbol id="icon-products" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5"/></symbol>
+      <symbol id="icon-inventory" viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13M7 21V11h10v10M7 16h10M3 21h18M10 11v5m4 0v5"/></symbol>
+      <symbol id="icon-sales" viewBox="0 0 24 24"><path d="M6 3h12v19l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h3"/></symbol>
+      <symbol id="icon-suppliers" viewBox="0 0 24 24"><path d="M3 5h11v13H3V5Zm11 5h4l3 4v4h-7"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></symbol>
+      <symbol id="icon-reports" viewBox="0 0 24 24"><path d="M4 3v18h17M9 16v-5m5 5V6m5 10V9"/></symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2m1-17a4 4 0 0 1 0 8m2 3a6 6 0 0 1 3 6"/></symbol>
+      <symbol id="icon-returns" viewBox="0 0 24 24"><path d="M8 5 3 10l5 5M3 10h11a7 7 0 0 1 0 14" transform="translate(0 -3)"/></symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24"><path d="m10 3-1 3-3 1-3-1-1 4 2 2v3l-1 2 3 3 3-1 3 2 3-2 3 1 3-3-1-3v-3l2-2-2-4-3 1-3-1-1-3h-3Z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H4v16h6m5-12 4 4-4 4m-7-4h12"/></symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+      <symbol id="icon-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+    </defs>
+  </svg>
+
+  <noscript><p class="noscript-message">Enable JavaScript to open the Voltix employee workspace. <a href="../index.html">Return to Login</a></p></noscript>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <a class="skip-link" href="#main-content">Skip to settings</a>
+    <aside id="app-sidebar" class="app-sidebar" aria-label="Workspace navigation">
+      <div class="sidebar-brand-row">
+        <a class="app-brand" href="dashboard.html" aria-label="Voltix dashboard"><span class="app-brand-mark" aria-hidden="true"></span>VOLTIX<span class="brand-dot">.</span></a>
+        <button id="close-sidebar" class="icon-button mobile-only" type="button" aria-label="Close navigation"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+      </div>
+      <p class="sidebar-caption">STORE WORKSPACE</p>
+      <nav aria-label="Primary navigation"><ul id="primary-navigation" class="nav-list"></ul></nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-context"><span class="workspace-dot" aria-hidden="true"></span><div><strong>Physical store</strong><span>POS &amp; inventory management</span></div></div>
+        <button id="logout-button" class="logout-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-logout"/></svg>Log out</button>
+        <span class="sidebar-demo">VOLTIX / PHASE 1 DEMO</span>
+      </div>
+    </aside>
+    <button id="sidebar-backdrop" class="sidebar-backdrop" type="button" aria-label="Close navigation" tabindex="-1" hidden></button>
+
+    <div id="workspace" class="workspace">
+      <header class="app-header">
+        <div class="header-leading">
+          <button id="menu-toggle" class="icon-button mobile-only" type="button" aria-label="Open navigation" aria-controls="app-sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#icon-menu"/></svg></button>
+          <p class="breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Settings</strong></p>
+        </div>
+        <div class="user-identity"><span id="user-avatar" class="user-avatar" aria-hidden="true"></span><div><strong id="current-user-name"></strong><span id="current-user-role" class="user-role"></span></div></div>
+      </header>
+
+      <main id="main-content" class="settings-content" tabindex="-1">
+        <!-- Access check banner if non-admin -->
+        <div id="access-denied-banner" class="access-denied-card" hidden>
+          <div class="denied-icon"><svg class="icon" aria-hidden="true"><use href="#icon-shield"/></svg></div>
+          <div>
+            <h2>Admin Privileges Required</h2>
+            <p>System configuration, store profile, and database maintenance are reserved exclusively for store administrators.</p>
+            <a class="button button-primary" href="dashboard.html">Return to Dashboard</a>
+          </div>
+        </div>
+
+        <div id="settings-view">
+          <div class="page-intro">
+            <div>
+              <p class="eyebrow">CONFIGURATION &amp; PREFERENCES</p>
+              <h1>System Settings</h1>
+              <p class="welcome-message">Configure store contact profile, tax &amp; currency preferences, inventory alert thresholds, and demo data backups.</p>
+            </div>
+            <button id="btn-save-settings" class="button button-primary" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#icon-save"/></svg>Save Changes
+            </button>
+          </div>
+
+          <!-- Settings Layout: Sidebar Nav + Sections -->
+          <div class="settings-layout">
+            <!-- Navigation Links -->
+            <nav class="settings-nav panel" aria-label="Settings sections">
+              <a href="#section-store" class="settings-nav-item active">Store Profile</a>
+              <a href="#section-pos" class="settings-nav-item">POS &amp; Receipts</a>
+              <a href="#section-inventory" class="settings-nav-item">Inventory &amp; Stock Alerts</a>
+              <a href="#section-data" class="settings-nav-item">Data &amp; Backup Utilities</a>
+            </nav>
+
+            <!-- Main Settings Form Panels -->
+            <div class="settings-panels">
+              <!-- Section 1: Store Profile -->
+              <section id="section-store" class="panel settings-section" aria-labelledby="heading-store">
+                <div class="panel-heading">
+                  <div>
+                    <p class="eyebrow">STORE IDENTIFICATION</p>
+                    <h2 id="heading-store">Store Profile &amp; Location</h2>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="setting-store-name">Store Name</label>
+                      <input id="setting-store-name" type="text" value="Voltix Electronics">
+                    </div>
+                    <div class="form-group">
+                      <label for="setting-store-branch">Branch Tagline</label>
+                      <input id="setting-store-branch" type="text" value="Main Downtown Retail">
+                    </div>
+                  </div>
+
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="setting-store-phone">Phone Number</label>
+                      <input id="setting-store-phone" type="tel" value="+1 (555) 019-2834">
+                    </div>
+                    <div class="form-group">
+                      <label for="setting-store-email">Support Email</label>
+                      <input id="setting-store-email" type="email" value="support@voltix.test">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="setting-store-address">Physical Store Address</label>
+                    <input id="setting-store-address" type="text" value="452 Tech Plaza, Silicon Ave, Suite 100">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="setting-store-tax-id">Tax / VAT Registration ID</label>
+                    <input id="setting-store-tax-id" type="text" value="TAX-EG-984210" style="max-width: 320px;">
+                    <small class="field-hint">Printed on all customer sales receipts for legal compliance.</small>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Section 2: POS & Receipts -->
+              <section id="section-pos" class="panel settings-section" aria-labelledby="heading-pos">
+                <div class="panel-heading">
+                  <div>
+                    <p class="eyebrow">CHECKOUT DEFAULTS</p>
+                    <h2 id="heading-pos">Point of Sale &amp; Receipts</h2>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="setting-currency-symbol">Currency Symbol</label>
+                      <select id="setting-currency-symbol">
+                        <option value="$">$ (USD / Dollar)</option>
+                        <option value="€">€ (EUR / Euro)</option>
+                        <option value="£">£ (GBP / Pound)</option>
+                        <option value="EGP ">EGP (Egyptian Pound)</option>
+                        <option value="AED ">AED (Emirates Dirham)</option>
+                        <option value="SAR ">SAR (Saudi Riyal)</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="setting-tax-rate">Sales Tax Rate (%)</label>
+                      <input id="setting-tax-rate" type="number" min="0" max="100" step="0.5" value="14">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="setting-receipt-header">Receipt Header Greeting</label>
+                    <input id="setting-receipt-header" type="text" value="Thank you for choosing Voltix Electronics!">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="setting-receipt-footer">Receipt Return &amp; Exchange Policy</label>
+                    <textarea id="setting-receipt-footer" rows="3">Returns or exchanges valid within 14 days of purchase with original receipt and unsealed manufacturer packaging.</textarea>
+                  </div>
+
+                  <div class="toggle-group">
+                    <div class="toggle-row">
+                      <div>
+                        <strong>Auto-print receipt upon checkout</strong>
+                        <p class="toggle-desc">Automatically trigger browser print preview after completing a sale.</p>
+                      </div>
+                      <label class="switch">
+                        <input id="setting-auto-print" type="checkbox" checked>
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+
+                    <div class="toggle-row">
+                      <div>
+                        <strong>Barcode scan audio beep</strong>
+                        <p class="toggle-desc">Play feedback sound tone when an item is added to POS cart.</p>
+                      </div>
+                      <label class="switch">
+                        <input id="setting-scan-sound" type="checkbox" checked>
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Section 3: Inventory Alerts -->
+              <section id="section-inventory" class="panel settings-section" aria-labelledby="heading-inventory">
+                <div class="panel-heading">
+                  <div>
+                    <p class="eyebrow">STOCK MONITORING</p>
+                    <h2 id="heading-inventory">Inventory &amp; Alert Thresholds</h2>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="form-group">
+                    <label for="setting-low-stock-threshold">Default Low-Stock Warning Threshold</label>
+                    <input id="setting-low-stock-threshold" type="number" min="1" max="100" value="5" style="max-width: 180px;">
+                    <small class="field-hint">Flag product on Dashboard and Inventory whenever stock count falls to or below this quantity.</small>
+                  </div>
+
+                  <div class="toggle-group">
+                    <div class="toggle-row">
+                      <div>
+                        <strong>Out-of-Stock Checkout Prevention</strong>
+                        <p class="toggle-desc">Prevent cashiers from selling items whose inventory quantity is zero.</p>
+                      </div>
+                      <label class="switch">
+                        <input id="setting-prevent-negative" type="checkbox" checked>
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+
+                    <div class="toggle-row">
+                      <div>
+                        <strong>Automatic Stock Deduction</strong>
+                        <p class="toggle-desc">Automatically decrement stock count immediately upon POS transaction completion.</p>
+                      </div>
+                      <label class="switch">
+                        <input id="setting-auto-deduct" type="checkbox" checked>
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Section 4: Data Management & Backup -->
+              <section id="section-data" class="panel settings-section" aria-labelledby="heading-data">
+                <div class="panel-heading">
+                  <div>
+                    <p class="eyebrow">SYSTEM MAINTENANCE</p>
+                    <h2 id="heading-data">Data Management &amp; Demo Utilities</h2>
+                  </div>
+                </div>
+                <div class="section-body">
+                  <div class="storage-card">
+                    <h3>Local Demo Storage Status</h3>
+                    <p class="storage-desc">All system data (users, inventory catalog, POS transaction journal, and configuration) is currently stored in your browser's LocalStorage.</p>
+                    <div class="storage-metrics-row">
+                      <div class="storage-pill"><strong id="metric-user-count">0</strong> Employees</div>
+                      <div class="storage-pill"><strong id="metric-product-count">0</strong> Products</div>
+                      <div class="storage-pill"><strong id="metric-sales-count">0</strong> Transactions</div>
+                      <div class="storage-pill"><strong id="metric-storage-size">~0 KB</strong> Used</div>
+                    </div>
+                  </div>
+
+                  <div class="data-actions-grid">
+                    <div class="action-card">
+                      <div>
+                        <strong>Export Data Backup</strong>
+                        <p>Download a complete JSON snapshot file of all current store data.</p>
+                      </div>
+                      <button id="btn-export-backup" class="button button-outline" type="button">
+                        <svg class="icon"><use href="#icon-download"/></svg>Export Backup
+                      </button>
+                    </div>
+
+                    <div class="action-card">
+                      <div>
+                        <strong>Restore from JSON Backup</strong>
+                        <p>Upload a previously exported Voltix JSON backup file.</p>
+                      </div>
+                      <label class="button button-outline file-upload-btn">
+                        <svg class="icon"><use href="#icon-upload"/></svg>Restore Data
+                        <input id="file-restore-input" type="file" accept=".json" class="sr-only">
+                      </label>
+                    </div>
+
+                    <div class="action-card danger-card">
+                      <div>
+                        <strong>Reset Demo Data</strong>
+                        <p>Reset all store demo data (users, products, sales, settings) back to factory initial state.</p>
+                      </div>
+                      <button id="btn-reset-demo" class="button button-danger" type="button">
+                        <svg class="icon"><use href="#icon-refresh"/></svg>Reset Everything
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <footer class="dashboard-footer"><span>VOLTIX · Built for your store team.</span><span>PHASE 1 DEMO</span></footer>
+      </main>
+    </div>
+  </div>
+
+  <!-- Reset Confirmation Modal -->
+  <div id="reset-modal" class="modal-backdrop" hidden>
+    <div class="modal-dialog modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="reset-dialog-title">
+      <div class="modal-header">
+        <h2 id="reset-dialog-title">Confirm Factory Reset</h2>
+        <button id="btn-reset-cancel-x" class="icon-button" type="button" aria-label="Close dialog">
+          <svg class="icon"><use href="#icon-close"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>This will erase all custom products, user edits, transactions, and settings, re-seeding the database with initial demo records.</p>
+        <p class="warning-text">Are you sure you wish to proceed?</p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-reset-cancel" class="button button-outline" type="button">Cancel</button>
+        <button id="btn-reset-confirm" class="button button-danger" type="button">Yes, Reset All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+</body>
+</html>
