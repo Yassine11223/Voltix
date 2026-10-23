@@ -76,6 +76,22 @@
   const getProducts = () => arrayAt(KEYS.products).filter((p) => p.status === 'active' && typeof p.id === 'string');
   const getSales = () => arrayAt(KEYS.sales);
   const getReturns = () => arrayAt(KEYS.returns);
+  /** One visibility rule for Sales, Returns and transaction validation. */
+  function visibleSales(sales, session, now = Date.now()) {
+    if (!session || !['admin', 'staff'].includes(session.role)) return [];
+    return sales.filter((sale) => {
+      if (!sale || typeof sale.id !== 'string') return false;
+      if (session.role === 'admin') return true;
+      const age = now - Date.parse(sale.date);
+      return sale.cashierId === session.id && Number.isFinite(age) && age >= 0 && age <= STAFF_SALES_VISIBLE_DAYS * 86400000;
+    });
+  }
+
+  /** Transient comparison token; never added to a sale or return record. */
+  function returnRevision(sale, products, returns) {
+    return JSON.stringify([sale, products.filter((product) => product.status === 'active' &&
+      sale.items.some((line) => line.productId === product.id)), returns.filter((record) => record.saleId === sale.id)]);
+  }
   // The inventory seed function replaces movement history. Never load it over real data.
   function canSeedDemoData() {
     if (getSession()?.role !== 'admin') return false;
@@ -142,6 +158,25 @@
         !Number.isFinite(sale.tax?.rate) || sale.tax.rate < 0 || sale.tax.rate > 100) throw new Error('Invalid refund inputs.');
     const ratio = sale.subtotal ? 1 - sale.discount.amount / sale.subtotal : 0;
     return round2(line.unitPrice * quantity * ratio * (1 + sale.tax.rate / 100));
+  }
+
+  /** Pure batch reconciliation: cap the balance and settle it on the final line. */
+  function calcReturnRefund(sale, items, returns = []) {
+    if (!moneyValid(sale?.total) || !Array.isArray(items) || !items.length) throw new Error('Invalid refund inputs.');
+    const paid = round2(returns.filter((record) => record.saleId === sale.id).reduce((sum, record) => {
+      if (!moneyValid(record.totalRefund)) throw new Error('Invalid stored refund.');
+      return sum + record.totalRefund;
+    }, 0));
+    if (paid > sale.total) throw new Error('Stored refunds exceed the sale total. Ask an administrator to review this sale.');
+    let balance = round2(sale.total - paid);
+    const amounts = items.map((item) => {
+      const refund = Math.min(balance, calcRefund(sale, item.productId, item.quantity));
+      balance = round2(balance - refund);
+      return refund;
+    });
+    const final = sale.items.every((line) => line.returnedQty + (items.find((item) => item.productId === line.productId)?.quantity || 0) === line.quantity);
+    if (final) amounts[amounts.length - 1] = round2(amounts[amounts.length - 1] + balance);
+    return { amounts, totalRefund: round2(amounts.reduce((sum, value) => sum + value, 0)) };
   }
 
   // Reports compatibility is deliberately isolated and best effort.
@@ -312,10 +347,12 @@
       const movements = parseSnapshot(snap, KEYS.movements, []);
       const counters = parseSnapshot(snap, KEYS.counters, {});
       const sale = sales.find((record) => record.id === payload.saleId);
-      if (!sale || !Array.isArray(sale.items)) return fail('Sale not found.');
+      if (!sale || !Array.isArray(sale.items) || !visibleSales([sale], user).length) return fail('Sale not found.');
+      if (payload.expectedRevision !== undefined && payload.expectedRevision !== returnRevision(sale, products, returns)) {
+        return fail('Sale or products changed. Review the remaining quantities before confirming again.');
+      }
       const age = Date.now() - Date.parse(sale.date);
       if (!Number.isFinite(age) || age < 0) return fail('The sale date is invalid.');
-      if (user.role === 'staff' && (sale.cashierId !== user.id || age > STAFF_SALES_VISIBLE_DAYS * 86400000)) return fail('You can only return your own recent sales.');
       if (age > RETURN_WINDOW_DAYS * 86400000 && !(user.role === 'admin' && payload.overrideReturnWindow === true)) return fail('The 14-day return window has expired.');
       if (sale.status === 'fully_returned') return fail('This sale has already been fully returned.');
       if (!Array.isArray(payload.items) || !payload.items.length) return fail('Select at least one item to return.');
@@ -337,12 +374,14 @@
         const restock = requested.restock && Boolean(product);
         if (requested.restock && !product) warnings.push(line.name + ': restock skipped because the product is deleted or archived.');
         return { productId: line.productId, name: line.name, unitPrice: line.unitPrice, quantity: requested.quantity,
-          refundAmount: calcRefund(sale, line.productId, requested.quantity), reason: requested.reason, restock };
+          refundAmount: 0, reason: requested.reason, restock };
       });
+      const refund = calcReturnRefund(sale, items, returns);
+      items.forEach((item, index) => { item.refundAmount = refund.amounts[index]; });
       const date = new Date().toISOString();
       const id = nextId(counters, 'return', 'R-', returns);
       const record = { id, date, saleId: sale.id, processedById: user.id, processedByName: user.name, items,
-        totalRefund: round2(items.reduce((sum, item) => sum + item.refundAmount, 0)),
+        totalRefund: refund.totalRefund,
         refundMethod: payload.refundMethod, note: String(payload.note || '').trim().slice(0, 1000) };
       items.forEach((item, index) => {
         if (item.restock) movement(products.find((p) => p.id === item.productId), item.quantity, 'return', id, index, user.name, date, movements);
@@ -359,7 +398,7 @@
     return result;
   }
 
-  window.VoltixPOSStore = Object.freeze({ getSession, getSettings, getProducts, getSales, getReturns,
+  window.VoltixPOSStore = Object.freeze({ getSession, getSettings, getProducts, getSales, getReturns, visibleSales, returnRevision, calcReturnRefund,
     round2, formatMoney, formatDate, escapeHtml, getCart, setCart, canSeedDemoData, calcTotals, calcRefund, checkoutSale, processReturn,
     constants: Object.freeze({ DEFAULT_TAX_RATE, DEFAULT_CURRENCY_SYMBOL, MAX_STAFF_DISCOUNT_PERCENT,
       RETURN_WINDOW_DAYS, STAFF_CAN_PROCESS_RETURNS, STAFF_SALES_VISIBLE_DAYS, SALES_PAGE_SIZE, ENABLE_REPORTS_COMPAT_MIRROR }) });

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Returns | VOLTIX</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/pos.css">
+  <link rel="stylesheet" href="../css/sales.css">
+  <link rel="stylesheet" href="../css/returns.css">
+  <script src="../js/app.js" defer></script>
+  <script src="../js/pos-store.js" defer></script>
+  <script src="../js/receipt.js" defer></script>
+  <script src="../js/returns.js" defer></script>
+</head>
+<body class="app-page">
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="icon-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+      <symbol id="icon-pos" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="12" rx="2"/><path d="M9 15v4m6-4v4M6 21h12M8 7h8m-8 4h4"/></symbol>
+      <symbol id="icon-products" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5"/></symbol>
+      <symbol id="icon-inventory" viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13M7 21V11h10v10M7 16h10M3 21h18M10 11v5m4 0v5"/></symbol>
+      <symbol id="icon-sales" viewBox="0 0 24 24"><path d="M6 3h12v19l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h3"/></symbol>
+      <symbol id="icon-suppliers" viewBox="0 0 24 24"><path d="M3 5h11v13H3V5Zm11 5h4l3 4v4h-7"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></symbol>
+      <symbol id="icon-reports" viewBox="0 0 24 24"><path d="M4 3v18h17M9 16v-5m5 5V6m5 10V9"/></symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2m1-17a4 4 0 0 1 0 8m2 3a6 6 0 0 1 3 6"/></symbol>
+      <symbol id="icon-returns" viewBox="0 0 24 24"><path d="M8 5 3 10l5 5M3 10h11a7 7 0 0 1 0 14" transform="translate(0 -3)"/></symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24"><path d="m10 3-1 3-3 1-3-1-1 4 2 2v3l-1 2 3 3 3-1 3 2 3-2 3 1 3-3-1-3v-3l2-2-2-4-3 1-3-1-1-3h-3Z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H4v16h6m5-12 4 4-4 4m-7-4h12"/></symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+      <symbol id="icon-stock" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"/></symbol>
+      <symbol id="icon-revenue" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 8h1m10 8h1"/></symbol>
+    </defs>
+  </svg>
+
+  <noscript><p class="noscript-message">Enable JavaScript to open the Voltix employee workspace. <a href="../index.html">Return to Login</a></p></noscript>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <a class="skip-link" href="#main-content">Skip to Returns</a>
+    <aside id="app-sidebar" class="app-sidebar" aria-label="Workspace navigation">
+      <div class="sidebar-brand-row">
+        <a class="app-brand" href="dashboard.html" aria-label="Voltix dashboard"><span class="app-brand-mark" aria-hidden="true"></span>VOLTIX<span class="brand-dot">.</span></a>
+        <button id="close-sidebar" class="icon-button mobile-only" type="button" aria-label="Close navigation"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+      </div>
+      <p class="sidebar-caption">STORE WORKSPACE</p>
+      <nav aria-label="Primary navigation"><ul id="primary-navigation" class="nav-list"></ul></nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-context"><span class="workspace-dot" aria-hidden="true"></span><div><strong>Physical store</strong><span>POS &amp; inventory management</span></div></div>
+        <button id="logout-button" class="logout-button" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-logout"/></svg>Log out</button>
+        <span class="sidebar-demo">VOLTIX / PHASE 1 DEMO</span>
+      </div>
+    </aside>
+    <button id="sidebar-backdrop" class="sidebar-backdrop" type="button" aria-label="Close navigation" tabindex="-1" hidden></button>
+
+    <div id="workspace" class="workspace">
+      <header class="app-header">
+        <div class="header-leading">
+          <button id="menu-toggle" class="icon-button mobile-only" type="button" aria-label="Open navigation" aria-controls="app-sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#icon-menu"/></svg></button>
+          <p class="breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Returns</strong></p>
+        </div>
+        <div class="user-identity"><span id="user-avatar" class="user-avatar" aria-hidden="true"></span><div><strong id="current-user-name"></strong><span id="current-user-role" class="user-role"></span></div></div>
+      </header>
+
+      <main id="main-content" class="returns-content" tabindex="-1">
+        <div class="returns-intro"><div><p class="pos-eyebrow">CUSTOMER RETURNS</p><h1>Returns</h1><p class="returns-muted">Find the original sale, select items and issue a refund.</p></div><a class="pos-button" href="sales.html">Back to Sales</a></div>
+        <p id="returns-staff-note" class="returns-notice" hidden>You can find your own sales from the last 7 days. History shows returns you processed.</p>
+        <p id="returns-permission" class="returns-warning" role="alert" hidden>Staff return processing is disabled. Ask an administrator for help.</p>
+        <section id="returns-flow" class="panel" aria-label="Process a return">
+          <ol class="returns-stepper" aria-label="Return progress"><li id="returns-progress-1" aria-current="step"><span>1</span>Find sale</li><li id="returns-progress-2"><span>2</span>Select items</li><li id="returns-progress-3"><span>3</span>Confirm</li></ol>
+          <div class="returns-body">
+            <section id="returns-step-1" aria-labelledby="returns-title-1">
+              <h2 id="returns-title-1" tabindex="-1">Find the original sale</h2>
+              <form id="returns-search-form" class="returns-search" novalidate><div class="returns-field"><label for="returns-search">Sale ID</label><input id="returns-search" class="pos-input" type="search" maxlength="80" placeholder="S-000001" autocomplete="off" aria-describedby="returns-search-help returns-search-error"><small id="returns-search-help" class="returns-muted">Enter S- followed by exactly six digits.</small></div><button class="button button-primary" type="submit">Find sale</button></form>
+              <p id="returns-search-error" class="pos-error" role="alert"></p>
+              <h3>Recent sales</h3><p id="returns-recent-empty" class="returns-muted" hidden>No sales available. <a href="pos.html">Open POS</a> to record a sale.</p><div id="returns-recent" class="returns-recent"></div>
+            </section>
+            <div id="returns-selected" class="returns-selected" hidden><div id="returns-sale-info"></div><p id="returns-sale-warning" class="returns-warning" role="status"></p><a id="returns-full-link" href="sales.html" hidden>Back to Sales</a><label id="returns-override-label" class="pos-check" hidden><input id="returns-override" type="checkbox">Override return window</label></div>
+            <section id="returns-step-2" aria-labelledby="returns-title-2" hidden>
+              <h2 id="returns-title-2" tabindex="-1">Select items to return</h2><p class="returns-muted">Choose whole-number quantities. Damaged and defective items default to no restock; you can change this.</p>
+              <div class="returns-table-region"><table class="returns-table"><caption class="sr-only">Original sale items and return choices</caption><thead><tr><th scope="col">Item</th><th scope="col">Sold</th><th scope="col">Returned</th><th scope="col">Returnable</th><th scope="col">Quantity</th><th scope="col">Reason</th><th scope="col">Stock</th></tr></thead><tbody id="returns-items"></tbody></table></div>
+              <p id="returns-items-error" class="pos-error" role="alert"></p>
+            </section>
+            <section id="returns-step-3" aria-labelledby="returns-title-3" hidden>
+              <h2 id="returns-title-3" tabindex="-1">Review the refund</h2><div id="returns-summary"></div>
+              <p class="returns-muted">Refund per line = unit price Ã— quantity Ã— (1 âˆ’ original discount Ã· subtotal) Ã— (1 + original tax rate Ã· 100), rounded to cents. The final return settles any rounding balance so total refunds equal the original sale total.</p>
+              <div class="returns-field"><label for="returns-method">Refund method</label><select id="returns-method" class="pos-input"><option value="cash">Cash</option><option value="card">Card</option></select></div>
+              <div class="returns-field"><label for="returns-note">Note (optional)</label><textarea id="returns-note" class="pos-input" rows="3" maxlength="1000"></textarea></div>
+            </section>
+            <p id="returns-flow-error" class="pos-error" role="alert"></p>
+          </div>
+          <div class="returns-navigation"><button id="returns-back" class="pos-button" type="button" hidden>Back</button><button id="returns-next" class="button button-primary" type="button" disabled>Continue</button><button id="returns-review" class="button button-primary" type="button" hidden disabled>Confirm refund</button></div>
+        </section>
+        <section class="panel returns-history" aria-labelledby="returns-history-title"><div class="panel-heading"><div><h2 id="returns-history-title">Returns history</h2><p id="returns-history-count" class="returns-muted" aria-live="polite"></p></div></div><p id="returns-history-empty" class="returns-empty" hidden>No returns recorded yet.</p><div id="returns-history-region" class="returns-table-region" role="region" aria-label="Returns history" tabindex="0"><table class="returns-table"><caption class="sr-only">Returns, newest first</caption><thead><tr><th scope="col">Return ID</th><th scope="col">Date</th><th scope="col">Original sale</th><th scope="col">Items</th><th scope="col">Refund</th><th scope="col">Processed by</th><th scope="col">Receipt</th></tr></thead><tbody id="returns-history-rows"></tbody></table></div></section>
+        <dialog id="returns-confirm" class="pos-modal" aria-labelledby="returns-confirm-title" aria-describedby="returns-confirm-text"><div class="pos-modal-heading"><h2 id="returns-confirm-title">Issue this refund?</h2></div><div class="returns-body"><p id="returns-confirm-text"></p><p>This updates the sale and any selected stock quantities.</p></div><div class="pos-modal-actions"><button id="returns-cancel" class="pos-button" type="button">Cancel</button><button id="returns-submit" class="button button-primary" type="button">Issue refund</button></div></dialog>
+        <div id="returns-toasts" class="pos-toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+      </main>
+    </div>
+  </div>
+  <div id="pos-receipt-root"><dialog id="returns-receipt" class="pos-modal" aria-labelledby="returns-receipt-title"><div class="pos-modal-heading"><h2 id="returns-receipt-title">Refund receipt</h2><button id="returns-receipt-close" class="pos-button" type="button">Close</button></div><div id="returns-receipt-content"></div><div class="pos-modal-actions"><button id="returns-print" class="button button-primary" type="button">Print</button><button id="returns-new" class="pos-button" type="button">New return</button></div></dialog></div>
+</body>
+</html>

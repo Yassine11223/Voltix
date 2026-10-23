@@ -1,23 +1,13 @@
 (function (window) {
   'use strict';
   const store = window.VoltixPOSStore;
-  const { STAFF_SALES_VISIBLE_DAYS, SALES_PAGE_SIZE, STAFF_CAN_PROCESS_RETURNS } = store.constants;
-  const DAY_MS = 86400000;
+  const { SALES_PAGE_SIZE, STAFF_CAN_PROCESS_RETURNS } = store.constants;
   const STATUS = Object.freeze({ completed: 'Completed', partially_returned: 'Partially returned', fully_returned: 'Fully returned' });
   const amount = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12 ? value : 0;
   const linesOf = (sale) => Array.isArray(sale.items) ? sale.items.filter((line) => line && typeof line === 'object') : [];
   const itemCount = (sale) => linesOf(sale).reduce((sum, line) => sum + (Number.isSafeInteger(line.quantity) && line.quantity > 0 && line.quantity <= 1e6 ? line.quantity : 0), 0);
 
-  /** Apply role visibility before filters, details, statistics or exports. */
-  function visibleSales(sales, session, now = Date.now()) {
-    if (!session || !['admin', 'staff'].includes(session.role)) return [];
-    return sales.filter((sale) => {
-      if (!sale || typeof sale.id !== 'string') return false;
-      if (session.role === 'admin') return true;
-      const age = now - Date.parse(sale.date);
-      return sale.cashierId === session.id && Number.isFinite(age) && age >= 0 && age <= STAFF_SALES_VISIBLE_DAYS * DAY_MS;
-    });
-  }
+  const visibleSales = store.visibleSales;
 
   // Use local calendar days, with an exclusive next-day boundary (including DST).
   function dateBoundary(value, nextDay = false) {
