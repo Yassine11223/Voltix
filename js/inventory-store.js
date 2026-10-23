@@ -42,6 +42,7 @@
     return id
   }  const categories=['Smartphones','Laptops','Tablets','Accessories','Audio','Gaming','Smart Home','Cameras','Storage','Networking'];
     function seedDataIfEmpty() {
+      if(!roleCan('product:write'))return;
       if(seedAllowed(KEYS.suppliers)) {
     const names=[['TechSource Ltd','Maya Hassan','+20 100 555 0101','maya@techsource.example'],['Nova Distribution','Omar Adel','+20 100 555 0102','sales@nova.example'],['Circuit Hub','Lina Samir','+20 100 555 0103','hello@circuithub.example'],['Pixel Partners','Karim Nabil','+20 100 555 0104','orders@pixel.example'],['Orbit Wholesale','Sara Youssef','+20 100 555 0105','team@orbit.example']];
       write(KEYS.suppliers,names.map((x,i)=>( {
@@ -53,7 +54,7 @@
       id:`P-${1001+i}`,sku:x[1],name:x[0],category:x[2],price:x[3],cost:x[4],stock:x[5],lowStockThreshold:x[6],supplier:`S-${String(x[7]+1).padStart(3,'0')}`,description:'',status:'active',createdAt:now(),updatedAt:now()
       }));
       write(KEYS.products,products);
-      write(KEYS.movements,products.map(p=>( {
+      if(seedAllowed(KEYS.movements))write(KEYS.movements,products.map(p=>( {
       id:`M-${String(p.id.slice(2)).padStart(4,'0')}`,productId:p.id,type:'initial',change:p.stock,stockBefore:0,stockAfter:p.stock,reason:'Seed inventory',reference:'',user:'System',date:p.createdAt
       })))
     }
@@ -71,6 +72,7 @@
 
   /** Persist the product list without changing shared storage keys. */
   function saveProducts(list) {
+  if(!roleCan('product:write'))return false;
   return write(KEYS.products,list)
   }
 
@@ -161,7 +163,7 @@
 
   /** Delete a product when the current role is allowed to do so. */
   function deleteProduct(id) {
-  if(!roleCan('product:delete'))return {ok:false,error:'Only a manager or administrator can delete products.'};
+  if(!roleCan('product:delete'))return {ok:false,error:'Only an admin can delete products.'};
     const p=getProductById(id);
     if(!p)return {
     ok:false,error:'Product not found.'
@@ -216,7 +218,7 @@
   }
 
   function deleteSupplier(id) {
-  if(!roleCan('supplier:delete'))return {ok:false,error:'Only a manager or administrator can delete suppliers.'};
+  if(!roleCan('supplier:delete'))return {ok:false,error:'Only an admin can delete suppliers.'};
     if(getProducts().some(p=>p.supplier===id))return {
     ok:false,error:'Products reference this supplier. Deactivate it instead.'
     };
@@ -227,26 +229,38 @@
   }
 
   function getCurrentUser() {
-  const session=read(KEYS.session,null);
-    return session&&typeof session==='object'&&session.name&&session.role?session: {
-    name:'Demo Inventory Manager',role:'Inventory Manager',status:'active'
-    }
+    // KEYS.session is retained for compatibility with existing localStorage data;
+    // identity comes only from the shared demo login, rechecked on every action.
+    try {
+      const session=JSON.parse(window.sessionStorage.getItem('voltix.session'));
+      if(!session||!['admin','staff'].includes(session.role))return null;
+      if(!['id','name','email'].every((key)=>typeof session[key]==='string'&&session[key].trim()))return null;
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(session.email))return null;
+      return {id:session.id,name:session.name,email:session.email,role:session.role};
+    }catch(error){return null}
   }
 
   function roleCan(action) {
-  const role=String(getCurrentUser().role||'').toLowerCase().replace(/[\s_-]/g,'');
-    if(role==='systemadmin'||role==='admin')return true;
-    if(action==='product:write'||action==='supplier:write'||action==='inventory:write')return ['storemanager','inventorymanager','inventorystaff'].includes(role);
-    if(action==='product:delete'||action==='supplier:delete')return role==='storemanager';
-    if(action==='stock:mutate')return ['storemanager','inventorymanager','inventorystaff'].includes(role);
-    if(action==='supplier:read'||action==='movement:read')return role!=='cashier';
-    return true
+    const user=getCurrentUser();
+    if(!user)return false;
+    const readActions=['view','product:read','inventory:read','movement:read'];
+    const adminActions=['product:write','product:delete','supplier:read','supplier:write','supplier:delete','inventory:supervise','inventory:write','stock:mutate'];
+    if(readActions.includes(action))return true;
+    // Preserve the existing sale/return helpers for authorized transaction callers.
+    if(action==='pos:stock-mutation'||action==='returns:stock-mutation')return true;
+    return user.role==='admin'&&adminActions.includes(action)
   }
 
   /** Apply one stock delta and append one movement record. */
   function adjustStock(productId,change,reason,type='adjust',reference='') {
-  const p=getProductById(productId),delta=Number(change);
-    if(type!=='sale'&&type!=='return'&&!roleCan('stock:mutate'))return {ok:false,error:'You do not have permission to change stock.'};
+    if(!roleCan('stock:mutate'))return {ok:false,error:'You do not have permission to change stock.'};
+    return applyStockChange(productId,change,reason,type,reference)
+  }
+
+  function applyStockChange(productId,change,reason,type,reference) {
+    const user=getCurrentUser();
+    if(!user)return {ok:false,error:'A valid session is required.'};
+    const p=getProductById(productId),delta=Number(change);
     if(!p)return {
     ok:false,error:'Product not found.'
     };
@@ -254,11 +268,10 @@
     ok:false,error:'Stock cannot fall below zero.'
     };
     const before=p.stock;
-    updateRaw(productId, {
-    stock:before+delta
-    });
+    const nextProducts=getProducts().map((product)=>product.id===productId?{...product,stock:before+delta,updatedAt:now()}:product);
+    if(!write(KEYS.products,nextProducts))return {ok:false,error:'Stock could not be saved.'};
     const movement= {
-    id:generateId('M'),productId,type,change:delta,stockBefore:before,stockAfter:before+delta,reason:reason||'',reference:reference||'',user:getCurrentUser().name,date:now()
+    id:generateId('M'),productId,type,change:delta,stockBefore:before,stockAfter:before+delta,reason:reason||'',reference:reference||'',user:user.name,date:now()
     };
     const list=read(KEYS.movements);
     list.push(movement);
@@ -268,11 +281,12 @@
     }
   }
 
-  /** Reduce stock for POS checkout; Cashier sessions are allowed. */
+  /** Reduce stock for POS checkout; both Phase 1 roles can complete sales. */
   function reduceStock(id,qty,ref) {
   const quantity=Number(qty);
     if(!Number.isInteger(quantity)||quantity<1)return {ok:false,error:'Sale quantity must be a whole number greater than zero.'};
-    return adjustStock(id,-quantity,'POS sale','sale',ref)
+    if(!roleCan('pos:stock-mutation'))return {ok:false,error:'A valid session is required.'};
+    return applyStockChange(id,-quantity,'POS sale','sale',ref)
   }
 
   /** Increase stock for a return; duplicate return references are rejected. */
@@ -280,7 +294,8 @@
   const quantity=Number(qty);
     if(!Number.isInteger(quantity)||quantity<1)return {ok:false,error:'Return quantity must be a whole number greater than zero.'};
     if(ref&&safeArray(read(KEYS.movements)).some((movement)=>movement.type==='return'&&movement.reference===ref))return {ok:false,error:'This return reference was already applied.'};
-    return adjustStock(id,quantity,'Stock return','return',ref)
+    if(!roleCan('returns:stock-mutation'))return {ok:false,error:'A valid session is required.'};
+    return applyStockChange(id,quantity,'Stock return','return',ref)
   }
 
   /** Validate and apply a multi-line delivery as one application operation. */
@@ -342,10 +357,6 @@
   }
 
   function can(action) {
-  if(action==='view')return true;
-    if(action==='product:read'||action==='inventory:read')return true;
-    if(action==='supplier:read'||action==='movement:read')return roleCan(action);
-    if(action==='product:write'||action==='product:delete'||action==='supplier:write'||action==='supplier:delete'||action==='inventory:write')return roleCan(action);
     return roleCan(action)
   }  seedDataIfEmpty();
   window.addEventListener('storage',()=>window.dispatchEvent(new CustomEvent('voltix:data-changed')));
