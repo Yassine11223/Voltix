@@ -3,13 +3,15 @@
 
   const store = window.VoltixInventory;
   const $ = (selector) => document.querySelector(selector);
+  const modal = new window.VoltixUI.ModalController($('#modalRoot'));
   let lastTrigger = null;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   const showToast = (message, type = 'success') => { const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.textContent = message; $('#toasts').append(toast); window.setTimeout(() => toast.remove(), 3000); };
-  const closeModal = () => { $('#modalRoot').replaceChildren(); if (lastTrigger) lastTrigger.focus(); };
+  const closeModal = () => { modal.close(); if (lastTrigger) lastTrigger.focus(); };
 
   function render() {
+    if (!store.can('supplier:read')) return;
     const query = $('#search').value.trim().toLowerCase();
     const status = $('#status').value;
     const products = store.getProducts();
@@ -25,12 +27,14 @@
   }
 
   function openSupplierForm(supplier = null, trigger = null) {
+    if (!store.can('supplier:write')) return;
     lastTrigger = trigger;
-    $('#modalRoot').innerHTML = `<div class="modal-backdrop" id="supplierBackdrop"><form class="modal" id="supplierForm" role="dialog" aria-modal="true" aria-labelledby="supplierModalTitle"><div class="modal-header"><h2 id="supplierModalTitle">${supplier ? 'Edit supplier' : 'Add supplier'}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="form-grid"><div class="field full"><label for="supplierName">Supplier name</label><input id="supplierName" required value="${escapeHtml(supplier?.name)}"><span class="error" id="nameError"></span></div><div class="field"><label for="supplierContact">Contact person</label><input id="supplierContact" value="${escapeHtml(supplier?.contactPerson)}"></div><div class="field"><label for="supplierPhone">Phone</label><input id="supplierPhone" placeholder="+20 100 000 0000" value="${escapeHtml(supplier?.phone)}"><span class="error" id="phoneError"></span></div><div class="field"><label for="supplierEmail">Email</label><input id="supplierEmail" type="email" value="${escapeHtml(supplier?.email)}"><span class="error" id="emailError"></span></div><div class="field"><label for="supplierAddress">Address</label><input id="supplierAddress" value="${escapeHtml(supplier?.address)}"></div></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">Save supplier</button></div></form></div>`;
+    modal.open(`<div class="modal-backdrop" id="supplierBackdrop"><form class="modal" id="supplierForm" role="dialog" aria-modal="true" aria-labelledby="supplierModalTitle"><div class="modal-header"><h2 id="supplierModalTitle">${supplier ? 'Edit supplier' : 'Add supplier'}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="form-grid"><div class="field full"><label for="supplierName">Supplier name</label><input id="supplierName" required value="${escapeHtml(supplier?.name)}"><span class="error" id="nameError"></span></div><div class="field"><label for="supplierContact">Contact person</label><input id="supplierContact" value="${escapeHtml(supplier?.contactPerson)}"></div><div class="field"><label for="supplierPhone">Phone</label><input id="supplierPhone" placeholder="+20 100 000 0000" value="${escapeHtml(supplier?.phone)}"><span class="error" id="phoneError"></span></div><div class="field"><label for="supplierEmail">Email</label><input id="supplierEmail" type="email" value="${escapeHtml(supplier?.email)}"><span class="error" id="emailError"></span></div><div class="field"><label for="supplierAddress">Address</label><input id="supplierAddress" value="${escapeHtml(supplier?.address)}"></div></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">Save supplier</button></div></form></div>`, trigger);
     $('#supplierName').focus();
     $('#supplierBackdrop').addEventListener('click', (event) => { if (event.target.id === 'supplierBackdrop' || event.target.matches('[data-close]')) closeModal(); });
     $('#supplierForm').addEventListener('submit', (event) => {
       event.preventDefault();
+      if (!store.can('supplier:write')) return;
       const data = { name: $('#supplierName').value.trim(), contactPerson: $('#supplierContact').value.trim(), phone: $('#supplierPhone').value.trim(), email: $('#supplierEmail').value.trim(), address: $('#supplierAddress').value.trim() };
       if (data.email && !/^\S+@\S+\.\S+$/.test(data.email)) { showToast('Enter a valid email address.', 'error'); return; }
       if (data.phone && !/^[+\d][\d\s()-]{6,}$/.test(data.phone)) { showToast('Enter a valid phone number.', 'error'); return; }
@@ -41,22 +45,19 @@
   }
 
   function showDetails(supplier, trigger) {
+    if (!store.can('supplier:read') || !supplier) return;
     lastTrigger = trigger;
     const products = store.getProducts().filter((product) => product.supplier === supplier.id);
-    $('#modalRoot').innerHTML = `<div class="modal-backdrop" id="detailsBackdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="detailsTitle"><div class="modal-header"><h2 id="detailsTitle">${escapeHtml(supplier.name)}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="detail-block"><h3>Contact</h3><p>${escapeHtml(supplier.contactPerson || 'No contact person')}</p><p>${escapeHtml(supplier.phone || 'No phone')} - ${escapeHtml(supplier.email || 'No email')}</p><p>${escapeHtml(supplier.address || 'No address')}</p></div><div class="detail-block"><h3>Products supplied (${products.length})</h3>${products.length ? products.map((product) => `<p><strong>${escapeHtml(product.name)}</strong><span class="subtle"> - ${product.stock} in stock</span></p>`).join('') : '<p>No products linked yet.</p>'}</div></div><div class="modal-footer"><a class="btn btn-primary" href="inventory.html?supplier=${encodeURIComponent(supplier.id)}">Receive delivery</a><button class="btn btn-secondary" type="button" data-close>Close</button></div></div></div>`;
+    modal.open(`<div class="modal-backdrop" id="detailsBackdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="detailsTitle"><div class="modal-header"><h2 id="detailsTitle">${escapeHtml(supplier.name)}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="detail-block"><h3>Contact</h3><p>${escapeHtml(supplier.contactPerson || 'No contact person')}</p><p>${escapeHtml(supplier.phone || 'No phone')} - ${escapeHtml(supplier.email || 'No email')}</p><p>${escapeHtml(supplier.address || 'No address')}</p></div><div class="detail-block"><h3>Products supplied (${products.length})</h3>${products.length ? products.map((product) => `<p><strong>${escapeHtml(product.name)}</strong><span class="subtle"> - ${product.stock} in stock</span></p>`).join('') : '<p>No products linked yet.</p>'}</div></div><div class="modal-footer"><a class="btn btn-primary" href="inventory.html?supplier=${encodeURIComponent(supplier.id)}">Receive delivery</a><button class="btn btn-secondary" type="button" data-close>Close</button></div></div></div>`, trigger);
     $('#detailsBackdrop').addEventListener('click', (event) => { if (event.target.id === 'detailsBackdrop' || event.target.matches('[data-close]')) closeModal(); });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    const user = window.VoltixUI.renderShell('suppliers'); $('#userName').textContent = user.name; $('#userRole').textContent = user.role; $('#avatar').textContent = user.name.split(' ').map((part) => part[0]).slice(0, 2).join('');
-    if (!window.VoltixUI.can('supplier:read', user)) { $('.vi-content').innerHTML = '<div class="permission-state"><h1>Suppliers</h1><p>You have view-only access to Products and Inventory. Supplier management is not available for your role.</p><a class="btn btn-primary" href="dashboard.html">Go to Dashboard</a></div>'; return; }
-    if (!store.can('supplier:write')) $('#addBtn').disabled = true;
+    const user = window.VoltixUI.renderShell('suppliers');
+    if (!user || !store.can('supplier:read')) return;
     render();
-    $('#search').addEventListener('input', render); $('#status').addEventListener('change', render); $('#addBtn').addEventListener('click', (event) => { if (store.can('supplier:write')) openSupplierForm(null, event.currentTarget); }); $('#menuBtn').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
-    document.addEventListener('click', (event) => { const detail = event.target.closest('[data-detail]'); const edit = event.target.closest('[data-edit]'); const toggle = event.target.closest('[data-toggle]'); const remove = event.target.closest('[data-delete]'); if (detail) showDetails(store.getSuppliers().find((supplier) => supplier.id === detail.dataset.detail), detail); if (edit && store.can('supplier:write')) openSupplierForm(store.getSuppliers().find((supplier) => supplier.id === edit.dataset.edit), edit); if (toggle && store.can('supplier:write')) { const supplier = store.getSuppliers().find((item) => item.id === toggle.dataset.toggle); store.updateSupplier(supplier.id, { status: supplier.status === 'active' ? 'inactive' : 'active' }); render(); showToast(`Supplier ${supplier.status === 'active' ? 'deactivated' : 'activated'}`); } if (remove && store.can('supplier:write')) { const result = store.deleteSupplier(remove.dataset.delete); if (!result.ok) showToast(result.error, 'error'); else { render(); showToast('Supplier deleted'); } } });
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && $('#modalRoot').firstElementChild) closeModal(); });
+    $('#search').addEventListener('input', render); $('#status').addEventListener('change', render); $('#addBtn').addEventListener('click', (event) => { if (store.can('supplier:write')) openSupplierForm(null, event.currentTarget); });
+    document.addEventListener('click', (event) => { if (!store.can('supplier:read')) return; const detail = event.target.closest('[data-detail]'); const edit = event.target.closest('[data-edit]'); const toggle = event.target.closest('[data-toggle]'); const remove = event.target.closest('[data-delete]'); if (detail) showDetails(store.getSuppliers().find((supplier) => supplier.id === detail.dataset.detail), detail); if (edit && store.can('supplier:write')) openSupplierForm(store.getSuppliers().find((supplier) => supplier.id === edit.dataset.edit), edit); if (toggle && store.can('supplier:write')) { const supplier = store.getSuppliers().find((item) => item.id === toggle.dataset.toggle); const result = store.updateSupplier(supplier.id, { status: supplier.status === 'active' ? 'inactive' : 'active' }); if (!result.ok) { showToast(result.error, 'error'); return; } render(); showToast(`Supplier ${supplier.status === 'active' ? 'deactivated' : 'activated'}`); } if (remove && store.can('supplier:delete')) { const result = store.deleteSupplier(remove.dataset.delete); if (!result.ok) showToast(result.error, 'error'); else { render(); showToast('Supplier deleted'); } } });
     window.addEventListener('voltix:data-changed', render);
   });
 }());
-
-

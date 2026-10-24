@@ -38,6 +38,12 @@
     return;
   }
 
+  // Keep restricted pages hidden even when opened directly by URL.
+  if (shell.dataset.requiredRole && session.role !== shell.dataset.requiredRole) {
+    window.location.replace("dashboard.html");
+    return;
+  }
+
   const navigation = [
     ["dashboard", "Dashboard"], ["pos", "POS"], ["products", "Products"],
     ["inventory", "Inventory"], ["sales", "Sales"], ["suppliers", "Suppliers"],

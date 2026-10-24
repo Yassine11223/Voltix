@@ -8,33 +8,115 @@
 </head>
 <body>
   <h1>Voltix inventory-store browser tests</h1>
+  <p>Restores the original records and session afterward. Close other Voltix tabs before running.</p>
   <ol id="results"></ol>
-  <script src="../js/pi-ui.js"></script>
+  <script>
+    window.voltixTestBackup = {
+      data: Object.fromEntries(['voltix_products', 'voltix_suppliers', 'voltix_stock_movements', 'voltix_sales', 'voltix.sales', 'voltix_returns', 'voltix_counters', 'voltix_lastUpdate'].map((key) => [key, localStorage.getItem(key)])),
+      session: sessionStorage.getItem('voltix.session')
+    };
+    sessionStorage.setItem('voltix.session', JSON.stringify({ id: 'user-admin', name: 'Admin', email: 'admin@voltix.test', role: 'admin' }));
+  </script>
   <script src="../js/inventory-store.js"></script>
+  <script src="../js/pos-store.js"></script>
   <script>
     (function () {
       const results = document.querySelector('#results');
       const tests = [];
       const assert = (name, condition) => tests.push({ name, condition });
       const store = window.VoltixInventory;
-      const products = store.getProducts();
-      const originalSession = localStorage.getItem('voltix_session');
-      localStorage.setItem('voltix_session', JSON.stringify({ name: 'QA Admin', role: 'System Admin', status: 'active' }));
-      assert('Seeds at least 25 products', products.length >= 25);
-      assert('Uses stock field', products.every((product) => Object.prototype.hasOwnProperty.call(product, 'stock')));
-      assert('Inventory summary is available', typeof store.getInventorySummary().totalUnits === 'number');
-      assert('Category summary is available', Array.isArray(store.getStockByCategory()));
-      const testProduct = { name: 'QA Product', sku: 'QA-TEST-001', category: 'Accessories', supplier: store.getSuppliers()[0].id, price: 10, cost: 5, stock: 4, lowStockThreshold: 2 };
-      const added = store.addProduct(testProduct);
-      assert('Adds a product', added.ok);
-      assert('Rejects duplicate SKU', !store.addProduct(testProduct).ok);
-      const before = store.getProductById(added.data.id).stock;
-      assert('Adjusts stock', store.adjustStock(added.data.id, 2, 'QA')?.ok && store.getProductById(added.data.id).stock === before + 2);
-      assert('Rejects negative result', !store.adjustStock(added.data.id, -999, 'QA').ok);
-      assert('Reduces stock and logs sale', store.reduceStock(added.data.id, 1, 'QA-SALE').ok && store.getMovements({ type: 'sale' }).some((movement) => movement.reference === 'QA-SALE'));
-      assert('Blocks referenced supplier deletion', !store.deleteSupplier(store.getSuppliers()[0].id).ok);
-      const restored = originalSession ? JSON.parse(originalSession) : null;
-      if (restored) localStorage.setItem('voltix_session', JSON.stringify(restored)); else localStorage.removeItem('voltix_session');
+      const setRole = (role) => sessionStorage.setItem('voltix.session', JSON.stringify({ id: 'user-' + role, name: role, email: 'qa@voltix.test', role }));
+      const snapshot = () => JSON.stringify([store.KEYS.products, store.KEYS.suppliers, store.KEYS.movements, 'voltix_sales', 'voltix.sales', 'voltix_returns', 'voltix_counters', 'voltix_lastUpdate'].map((key) => localStorage.getItem(key)));
+      try {
+        assert('Uses the shared admin session', store.getCurrentUser().role === 'admin');
+        assert('Uses stock field', store.getProducts().every((product) => Object.hasOwn(product, 'stock')));
+        ['voltix_products', 'voltix_suppliers', 'voltix_stock_movements'].forEach((key) => localStorage.removeItem(key));
+        store.seedDataIfEmpty();
+        assert('Dashboard inventory data is real after empty-storage seeding', store.getInventorySummary().totalProducts > 0 && store.getInventorySummary().totalUnits > 0);
+        assert('Dashboard low-stock and category lists are available', Array.isArray(store.getLowStockProducts()) && store.getStockByCategory().length > 0);
+        const supplier = store.addSupplier({ name: 'QA Supplier ' + Date.now() });
+        assert('Admin adds a supplier', supplier.ok);
+        const testProduct = { name: 'QA Product', sku: 'QA DUP-' + Date.now(), category: 'Accessories', supplier: supplier.data.id, price: 10, cost: 5, stock: 4, lowStockThreshold: 2 };
+        const added = store.addProduct(testProduct);
+        assert('Admin adds a product', added.ok);
+        const id = added.data.id;
+        const legacyDuplicate = { ...added.data, id: 'P-QA-DUP', name: 'Legacy duplicate' };
+        localStorage.setItem(store.KEYS.products, JSON.stringify([...JSON.parse(localStorage.getItem(store.KEYS.products)), legacyDuplicate]));
+        assert('Finds existing duplicate records without changing them', store.getSkuConflicts().some((conflict) => conflict.sku === store.normalizeSku(testProduct.sku) && conflict.products.length === 2));
+        localStorage.setItem(store.KEYS.products, JSON.stringify(JSON.parse(localStorage.getItem(store.KEYS.products)).filter((product) => product.id !== legacyDuplicate.id)));
+        const duplicate = store.addProduct({ ...testProduct, sku: '  ' + testProduct.sku.toLowerCase().replace(' ', '   ') + '  ' });
+        assert('Rejects duplicate SKU with case and whitespace differences', !duplicate.ok && duplicate.error === `SKU '${store.normalizeSku(testProduct.sku)}' is already used by product ${id} (QA Product).`);
+        const otherSku = store.getProducts().find((product) => product.id !== id).sku;
+        const editConflict = store.updateProduct(id, { ...testProduct, sku: otherSku });
+        assert('Rejects editing to another product SKU', !editConflict.ok && editConflict.error.includes(`product ${store.getProducts().find((product) => product.sku === otherSku).id}`));
+        assert('Console call to addProduct is protected by the same SKU rule', !store.addProduct({ ...testProduct, sku: testProduct.sku.toLowerCase() }).ok);
+        assert('Admin edits a product', store.updateProduct(id, { ...testProduct, price: 12 }).ok && store.getProductById(id).price === 12);
+        assert('Admin archives a product', store.archiveProduct(id).ok && store.getProductById(id).status === 'archived');
+        assert('Admin restores a product', store.archiveProduct(id).ok && store.getProductById(id).status === 'active');
+        assert('Archived product SKU remains blocked', store.archiveProduct(id).ok && !store.addProduct({ ...testProduct, sku: testProduct.sku + ' ' }).ok && store.archiveProduct(id).ok);
+        assert('Adjusts stock', store.adjustStock(id, 2, 'QA').ok && store.getProductById(id).stock === 6);
+        assert('Rejects negative stock', !store.adjustStock(id, -999, 'QA').ok && store.getProductById(id).stock === 6);
+        assert('Receives a delivery', store.receiveDelivery([{ productId: id, quantity: 2 }], supplier.data.id, 'QA-DELIVERY').ok && store.getProductById(id).stock === 8);
+        assert('Rejects duplicate delivery lines', !store.receiveDelivery([{ productId: id, quantity: 1 }, { productId: id, quantity: 2 }], supplier.data.id, 'QA').ok);
+        assert('Blocks referenced supplier deletion', !store.deleteSupplier(supplier.data.id).ok);
+        assert('Admin deactivates a supplier', store.updateSupplier(supplier.data.id, { status: 'inactive' }).ok);
+        setRole('staff');
+        assert('Staff reads products and inventory', store.can('product:read') && store.can('inventory:read'));
+        assert('Staff cannot access supplier management', !store.can('supplier:read'));
+        const before = snapshot();
+        const denied = {
+          'add product': () => store.addProduct({ ...testProduct, sku: 'QA-STAFF' }),
+          'edit product': () => store.updateProduct(id, { ...testProduct, price: 99 }),
+          'archive product': () => store.archiveProduct(id),
+          'delete product': () => store.deleteProduct(id),
+          'adjust stock': () => store.adjustStock(id, 1, 'QA'),
+          'adjust stock using sale type': () => store.adjustStock(id, 1, 'QA', 'sale'),
+          'receive delivery': () => store.receiveDelivery([{ productId: id, quantity: 1 }], supplier.data.id, 'QA'),
+          'add supplier': () => store.addSupplier({ name: 'QA Staff Supplier' }),
+          'edit supplier': () => store.updateSupplier(supplier.data.id, { name: 'QA Staff' }),
+          'delete supplier': () => store.deleteSupplier(supplier.data.id)
+        };
+        Object.entries(denied).forEach(([name, action]) => assert('Staff cannot ' + name, !action().ok));
+        assert('Staff cannot bypass saveProducts', store.saveProducts([]) === false);
+        store.seedDataIfEmpty();
+        assert('Denied staff actions leave records unchanged', snapshot() === before);
+        assert('Existing staff POS helper logs a sale', store.reduceStock(id, 1, 'QA-SALE').ok && store.getMovements({ type: 'sale' }).some((movement) => movement.reference === 'QA-SALE' && movement.productName === 'QA Product'));
+        assert('Existing return helper restores stock', store.increaseStock(id, 1, 'QA-RETURN-' + id).ok);
+        assert('Duplicate return reference is blocked', !store.increaseStock(id, 1, 'QA-RETURN-' + id).ok);
+        setRole('Inventory Manager');
+        assert('Obsolete roles are rejected', store.getCurrentUser() === null && !store.can('product:write'));
+        sessionStorage.removeItem('voltix.session');
+        assert('Unauthenticated access is denied', !store.can('view') && !store.can('product:read'));
+        assert('Unauthenticated stock helpers are denied', !store.reduceStock(id, 1, 'QA').ok && !store.increaseStock(id, 1, 'QA').ok);
+        setRole('admin');
+        const posBefore = store.getProductById(id).stock;
+        const posSale = window.VoltixPOSStore.checkoutSale({ items: [{ productId: id, quantity: 1 }], payment: { method: 'card' } });
+        assert('POS sale reduces stock and logs a snapshot movement', posSale.ok && store.getProductById(id).stock === posBefore - 1 && store.getMovements({ type: 'sale' }).some((movement) => movement.reference === posSale.data.id && movement.productName === 'QA Product'));
+        const oldMovement = { id: 'QA-OLD-' + Date.now(), productId: id, type: 'adjust', change: 0, stockBefore: store.getProductById(id).stock, stockAfter: store.getProductById(id).stock, reason: 'Legacy', reference: '', user: 'QA', date: new Date().toISOString() };
+        localStorage.setItem(store.KEYS.movements, JSON.stringify([...JSON.parse(localStorage.getItem(store.KEYS.movements)), oldMovement]));
+        const backfilled = store.getMovements({ productId: id }).find((movement) => movement.id === oldMovement.id);
+        assert('Old movement snapshots are backfilled', backfilled.productName === 'QA Product' && backfilled.sku === store.normalizeSku(testProduct.sku));
+        const deletedMovement = { id: 'QA-DELETED-' + Date.now(), productId: 'P-GONE', type: 'adjust', change: 0, stockBefore: 1, stockAfter: 1, reason: 'Legacy', reference: '', user: 'QA', date: new Date().toISOString() };
+        localStorage.setItem(store.KEYS.movements, JSON.stringify([...JSON.parse(localStorage.getItem(store.KEYS.movements)), deletedMovement]));
+        assert('Missing product movement is marked deleted instead of losing its identity', store.getMovements({ productId: 'P-GONE' })[0].productDeleted === true && store.getMovements({ productId: 'P-GONE' })[0].productName === 'Deleted product (P-GONE)');
+        const productName = store.getProductById(id).name;
+        const productSku = store.getProductById(id).sku;
+        assert('Admin deletes a product', store.deleteProduct(id).ok && !store.getProductById(id));
+        const deletedHistory = store.getMovements({ productId: id });
+        assert('Deleted product history retains name, SKU, and a final delete row', deletedHistory.some((movement) => movement.productName === productName && movement.sku === productSku) && deletedHistory.some((movement) => movement.type === 'delete' && movement.stockBefore === movement.stockAfter));
+        assert('Admin deletes an unreferenced supplier', store.deleteSupplier(supplier.data.id).ok);
+      } catch (error) {
+        assert('Unexpected error: ' + error.message, false);
+      } finally {
+        Object.entries(window.voltixTestBackup.data).forEach(([key, value]) => {
+          if (value === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, value);
+        });
+        const original = window.voltixTestBackup.session;
+        if (original === null) sessionStorage.removeItem('voltix.session');
+        else sessionStorage.setItem('voltix.session', original);
+        delete window.voltixTestBackup;
+      }
       tests.forEach((test) => { const item = document.createElement('li'); item.className = test.condition ? 'pass' : 'fail'; item.textContent = `${test.condition ? 'PASS' : 'FAIL'} - ${test.name}`; results.append(item); });
     }());
   </script>

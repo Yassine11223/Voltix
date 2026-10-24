@@ -31,6 +31,15 @@
 .stock-empty h3 { margin: 1px 0 6px; font-size: 12px; font-weight: 600; }
 .stock-empty p { margin: 0 0 8px; color: #65738a; font-size: 11px; line-height: 1.8; }
 .access-note { color: #65738a; font-size: 10px; }
+.stock-list, .category-list { list-style: none; margin: 0; padding: 0 24px 12px; }
+.stock-list li, .category-list li { display: flex; align-items: center; gap: 14px; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #edf0f5; }
+.stock-list li:last-child, .category-list li:last-child { border-bottom: 0; }
+.stock-list strong, .category-list strong { display: block; font-size: 12px; font-weight: 600; }
+.stock-list li div span, .category-list li div span { display: block; margin-top: 4px; color: #65738a; font-size: 10px; }
+.stock-count { flex: 0 0 auto; color: #a66905; font-size: 11px; font-weight: 600; }
+.stock-count-out { color: #c83439; }
+.category-list li { flex-wrap: wrap; }
+.category-list > li > .subtle { flex-basis: 100%; margin-left: auto; text-align: right; font-size: 10px; }
 .quick-actions .panel-heading { padding-bottom: 12px; }
 .quick-action-list { padding: 0 14px 15px; }
 .quick-action { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px 10px; border-radius: 8px; text-decoration: none; transition: background 150ms; }
@@ -75,4 +84,5 @@
   .stock-empty { padding: 0 18px 22px; gap: 12px; }
   .table-scroll th { padding: 12px 18px; }
   .transaction-empty { padding: 30px 18px; }
+  .stock-list, .category-list { padding-left: 18px; padding-right: 18px; }
 }

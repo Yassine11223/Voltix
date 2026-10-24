@@ -1,43 +1,33 @@
 # Voltix inventory integration
 
-Member 2 owns `js/inventory-store.js`. Load it before POS, dashboard, reports, or returns scripts. It exposes one shared browser-local data contract under the `VoltixInventory` namespace.
+`js/inventory-store.js` owns the shared browser-local inventory contract. Load it before inventory consumers, including the Dashboard. It exposes `window.VoltixInventory` and dispatches `voltix:data-changed` after writes.
 
 ## Public functions
 
-- `getProducts()` / `getProductById(id)` — read products. Stock is always the `stock` field.
-- `addProduct(data)` / `updateProduct(id, data)` / `archiveProduct(id)` / `deleteProduct(id)` — product management; return `{ ok, error, data }`.
-- `getSuppliers()` / `addSupplier(data)` / `updateSupplier(id, data)` / `deleteSupplier(id)` — supplier management.
-- `adjustStock(productId, change, reason, type, reference)` — the single stock mutation primitive.
-- `reduceStock(productId, qty, reference)` — call at POS checkout; writes a `sale` movement.
-- `increaseStock(productId, qty, reference)` — call for returns or deliveries; writes a `receive` movement by default.
-- `getLowStockProducts()` / `getStockStatus(product)` — dashboard and alerts.
-- `getMovements(filter)` — movement history, with optional `productId`, `type`, or `user` filters.
-- `formatCurrency(value)`, `generateId(prefix)`, `seedDataIfEmpty()` — shared utilities.
+- `getProducts()` / `getProductById(id)` read products. Stock is always the `stock` field and SKUs are normalized as trimmed, single-spaced uppercase text.
+- `addProduct(data)`, `updateProduct(id, data)`, `archiveProduct(id)`, and `deleteProduct(id)` return `{ ok, error, data }`.
+- `getSuppliers()`, `addSupplier(data)`, `updateSupplier(id, data)`, and `deleteSupplier(id)` manage suppliers.
+- `adjustStock(productId, change, reason, type, reference)` is the inventory stock mutation primitive.
+- `reduceStock(productId, qty, reference)` writes a `sale` movement; `increaseStock(productId, qty, reference)` writes a `return` movement and rejects duplicate return references.
+- `receiveDelivery(lines, supplierId, reference)` validates all lines before applying a multi-line delivery.
+- `getLowStockProducts()`, `getStockStatus(product)`, `getInventorySummary()`, `getStockByCategory()`, and `getSupplierProductCounts()` support Dashboard and reports.
+- `getMovements(filter)` supports `productId`, `type`, and `user` filters. `getSkuConflicts()` reports existing duplicate records and `validateSku(sku, id)` validates a normalized SKU before saving.
 
-The store dispatches `voltix:data-changed` after writes and listens for cross-tab `storage` updates. Consumers should re-render on that event.
+## Storage keys and stored shapes
 
-## Example POS checkout
+Inventory uses `localStorage` keys `voltix_products`, `voltix_suppliers`, `voltix_sales`, `voltix_users`, and `voltix_stock_movements`. The active session is in `sessionStorage` under `voltix.session`.
 
-```js
-const result = VoltixInventory.reduceStock(item.productId, item.qty, sale.id);
-if (!result.ok) {
-  // Stop checkout and show result.error.
-}
-```
+Products use `{ id, sku, name, category, price, cost, stock, lowStockThreshold, supplier, description, status, createdAt, updatedAt }`. Suppliers use `{ id, name, contactPerson, phone, email, address, status, createdAt }`. Sessions use `{ id, name, email, role }`, with `role` equal to `admin` or `staff`.
 
-The store uses `voltix_products`, `voltix_suppliers`, `voltix_sales`, `voltix_users`, `voltix_session`, and `voltix_stock_movements` in localStorage. It seeds only empty keys.
+Sales use `{ id, date, cashierId, cashierName, items, subtotal, discount, tax, total, payment, status }`; each item keeps a `productId`, `name`, `sku`, `unitPrice`, `quantity`, and `lineTotal` snapshot. Stock movements use `{ id, productId, productName, sku, type, change, stockBefore, stockAfter, reason, reference, user, date }`. Types are `initial`, `adjust`, `receive`, `sale`, `return`, and `delete`. A delete row records the final known stock before and after deletion while earlier rows remain intact.
 
-## Dashboard and reports helpers
+SKU uniqueness is enforced in the store across active and archived products. Comparison normalizes trim, inner whitespace, and case; the normalized value is stored for new and edited products. Existing conflicts are shown on the Products page and are never silently renamed or deleted. Seeding and every public product-list write use the same duplicate guard.
 
-```js
-const summary = VoltixInventory.getInventorySummary();
-const categories = VoltixInventory.getStockByCategory();
-const supplierCounts = VoltixInventory.getSupplierProductCounts();
-```
+## Dashboard contract
 
-`getInventorySummary()` returns `totalProducts`, `totalUnits`, `lowStockCount`, `outOfStockCount`, and `inventoryValue`. `getStockByCategory()` returns `{ category, products, units, value }` rows. `getSupplierProductCounts()` returns a supplier-id-to-product-count object.
+`getInventorySummary()` returns `totalProducts`, `totalUnits`, `lowStockCount`, `outOfStockCount`, and `inventoryValue` for active products. `getStockByCategory()` returns `{ category, products, units, value }` rows. The Dashboard reads these helpers and the canonical `voltix_sales` array, tolerating legacy sale fields `qty`/`quantity`, `productId`/`id`, `date`/`createdAt`, and missing totals that can be computed from line items. It calls `seedDataIfEmpty()` safely and re-renders on `voltix:data-changed`, `storage`, and visible-tab `visibilitychange` events. Staff dashboards omit inventory value and other cost data.
 
-## Delivery and returns
+## Delivery, POS, and returns
 
 ```js
 const delivery = VoltixInventory.receiveDelivery([
@@ -48,17 +38,11 @@ const delivery = VoltixInventory.receiveDelivery([
 const returned = VoltixInventory.increaseStock('P-1001', 1, 'RET-1009');
 ```
 
-`receiveDelivery()` validates all lines before applying them and creates one `receive` movement per line. `increaseStock()` creates a `return` movement and rejects a duplicate return reference.
+The POS store also writes the same movement snapshot fields when it records `sale` and `return` movements. Old movement rows are backfilled with the current product name and SKU when possible. If a product has already been deleted, history renders the saved snapshot or `Deleted product (ID)` with a Deleted badge rather than a bare ID. Product filters and CSV export use those snapshots.
 
-## Role test snippets
-
-For local demos, set a simulated session in DevTools before refreshing a page:
+For local demos, set a validated session in DevTools before refreshing:
 
 ```js
-localStorage.setItem('voltix_session', JSON.stringify({ id: 'U-1', name: 'Admin Demo', role: 'System Admin', status: 'active' }));
-localStorage.setItem('voltix_session', JSON.stringify({ id: 'U-2', name: 'Manager Demo', role: 'Store Manager', status: 'active' }));
-localStorage.setItem('voltix_session', JSON.stringify({ id: 'U-3', name: 'Inventory Demo', role: 'Inventory Manager', status: 'active' }));
-localStorage.setItem('voltix_session', JSON.stringify({ id: 'U-4', name: 'Cashier Demo', role: 'Cashier', status: 'active' }));
+sessionStorage.setItem('voltix.session', JSON.stringify({ id: 'user-admin', name: 'Admin Demo', email: 'admin@voltix.test', role: 'admin' }));
+sessionStorage.setItem('voltix.session', JSON.stringify({ id: 'user-staff', name: 'Cashier Demo', email: 'staff@voltix.test', role: 'staff' }));
 ```
-
-Member 1 can read `getLowStockProducts()` and `getInventorySummary()` for Dashboard cards. Member 3 should call `reduceStock(productId, qty, saleId)` after a successful checkout. Returns should call `increaseStock(productId, qty, returnId)`. Member 4 can use `getMovements()`, `getStockByCategory()`, and `getSupplierProductCounts()` for reports.

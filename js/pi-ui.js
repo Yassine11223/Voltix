@@ -1,65 +1,36 @@
 (function (window) {
   'use strict';
 
-  // TODO(lead): replace this temporary UI/session layer when shared auth and layout are ready.
-  const SESSION_KEY = 'voltix_session';
+  // The shared app owns navigation, identity display, and session redirects.
   const LOGIN_PATH = '../index.html';
-  const DEV_FALLBACK_SESSION = true;
-  const ROLE_ALIASES = {
-    systemadmin: 'System Admin',
-    admin: 'System Admin',
-    storemanager: 'Store Manager',
-    inventorymanager: 'Inventory Manager',
-    inventorystaff: 'Inventory Manager',
-    cashier: 'Cashier'
-  };
+  const DEV_FALLBACK_SESSION = false;
   const PERMISSIONS = {
-    'product:read': ['System Admin', 'Store Manager', 'Inventory Manager', 'Cashier'],
-    'product:write': ['System Admin', 'Store Manager', 'Inventory Manager'],
-    'product:delete': ['System Admin', 'Store Manager'],
-    'inventory:read': ['System Admin', 'Store Manager', 'Inventory Manager', 'Cashier'],
-    'inventory:supervise': ['System Admin', 'Store Manager', 'Inventory Manager'],
-    'inventory:write': ['System Admin', 'Inventory Manager'],
-    'supplier:read': ['System Admin', 'Store Manager', 'Inventory Manager'],
-    'supplier:write': ['System Admin', 'Store Manager', 'Inventory Manager'],
-    'supplier:delete': ['System Admin', 'Store Manager'],
-    'movement:read': ['System Admin', 'Store Manager', 'Inventory Manager']
+    'product:read': ['admin', 'staff'],
+    'product:write': ['admin'],
+    'product:delete': ['admin'],
+    'inventory:read': ['admin', 'staff'],
+    'inventory:supervise': ['admin'],
+    'inventory:write': ['admin'],
+    'supplier:read': ['admin'],
+    'supplier:write': ['admin'],
+    'supplier:delete': ['admin'],
+    'movement:read': ['admin', 'staff']
   };
 
-  const normalizeRole = (role) => String(role || '').toLowerCase().replace(/[\s_-]/g, '')
-    .replace(/^systemadministrator$/, 'systemadmin');
-
-  function readSession() {
-    try {
-      const raw = window.localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      const session = JSON.parse(raw);
-      if (!session || typeof session !== 'object' || !session.name || !session.role) return null;
-      const role = ROLE_ALIASES[normalizeRole(session.role)];
-      if (!role) return null;
-      return { ...session, role };
-    } catch (error) {
-      return null;
-    }
-  }
+  const normalizeRole = (role) => ['admin', 'staff'].includes(role) ? role : '';
 
   function requireSession() {
-    const session = readSession();
-    if (session) return session;
-    if (DEV_FALLBACK_SESSION) {
-      const fallback = { id: 'DEV-1', name: 'Demo Inventory Manager', role: 'Inventory Manager', status: 'active' };
-      try { window.localStorage.setItem(SESSION_KEY, JSON.stringify(fallback)); } catch (error) { /* safe fallback */ }
-      console.info('Voltix development session created. // TODO(lead): set DEV_FALLBACK_SESSION to false once login works.');
-      return fallback;
+    const session = window.VoltixInventory.getCurrentUser();
+    if (!session) {
+      window.location.replace(LOGIN_PATH);
+      return null;
     }
-    window.location.href = LOGIN_PATH;
-    return null;
+    // app.js leaves VoltixApp unset while redirecting a restricted page.
+    return window.VoltixApp ? session : null;
   }
 
-  function can(action, session = requireSession()) {
-    if (!session) return false;
-    if (action === 'pos:stock-mutation' || action === 'returns:stock-mutation') return true;
-    return Boolean(PERMISSIONS[action]?.includes(session.role));
+  function can(action) {
+    return window.VoltixInventory.can(action);
   }
 
   function icon(path) {
@@ -69,15 +40,11 @@
   function renderShell(activePage) {
     const session = requireSession();
     if (!session) return null;
-    const userName = document.querySelector('#userName');
-    const userRole = document.querySelector('#userRole');
-    const avatar = document.querySelector('#avatar');
-    if (userName) userName.textContent = session.name;
-    if (userRole) userRole.textContent = session.role;
-    if (avatar) avatar.textContent = session.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase();
-    document.querySelectorAll('.vi-nav a').forEach((link) => link.classList.toggle('active', link.getAttribute('href') === `${activePage}.html`));
-    const supplierLink = document.querySelector('.vi-nav a[href="suppliers.html"]');
-    if (supplierLink && !can('supplier:read', session)) supplierLink.hidden = true;
+    if (activePage === 'suppliers' && !can('supplier:read')) {
+      document.getElementById('app-shell').hidden = true;
+      window.location.replace('dashboard.html');
+      return null;
+    }
     return session;
   }
 
@@ -89,14 +56,14 @@
       const dialog = this.root.querySelector('[role="dialog"], [role="alertdialog"]');
       if (!dialog) return;
       document.body.classList.add('modal-open');
-      document.querySelector('.vi-shell')?.setAttribute('aria-hidden', 'true');
       document.addEventListener('keydown', this.keyHandler);
       dialog.querySelector('input, select, textarea, button')?.focus();
+      document.getElementById('app-shell').inert = true;
     }
     close() {
       this.root.replaceChildren();
       document.body.classList.remove('modal-open');
-      document.querySelector('.vi-shell')?.removeAttribute('aria-hidden');
+      document.getElementById('app-shell').inert = false;
       document.removeEventListener('keydown', this.keyHandler);
       this.previousFocus?.focus();
     }
