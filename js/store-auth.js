@@ -1,6 +1,7 @@
 (function (window, document) {
   'use strict';
   const S = window.VoltixStore, UI = window.VoltixStoreUI;
+  if (document.getElementById('st-reset-flow')) { setupReset(); return; }
   const next = S.safeNext(new URLSearchParams(window.location.search).get('next'));
   const error = document.getElementById('st-auth-error');
   const signin = document.getElementById('st-signin-form');
@@ -13,6 +14,60 @@
   const remembered = S.safeRead(S.KEYS.remember, '');
   email.value = typeof remembered === 'string' ? remembered : '';
   remember.checked = !!email.value;
+  if (new URLSearchParams(window.location.search).get('reset') === 'ok') {
+    const notice = document.createElement('p');
+    notice.className = 'st-reset-success'; notice.setAttribute('role', 'status');
+    notice.textContent = 'Password updated. Sign in with your new password.';
+    signin.before(notice);
+  }
+
+  /** Three sequential screens share this controller without changing login behavior. */
+  function setupReset() {
+    const params = new URLSearchParams(window.location.search);
+    const panels = [1, 2, 3].map((step) => document.getElementById('st-reset-step-' + step));
+    const request = document.getElementById('st-reset-request'), update = document.getElementById('st-reset-update');
+    const resetEmail = document.getElementById('st-reset-email'), message = document.getElementById('st-reset-error');
+    const start = document.getElementById('st-reset-start');
+    let submittedEmail = '', busy = false;
+    function showStep(step, focus = true) {
+      panels.forEach((panel, index) => { panel.hidden = index !== step - 1; });
+      document.querySelectorAll('[data-st-reset-step]').forEach((item, index) => {
+        if (index === step - 1) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
+      });
+      message.hidden = true; start.hidden = true;
+      if (focus) panels[step - 1].querySelector('h2').focus();
+    }
+    function send() {
+      const result = S.requestPasswordReset(submittedEmail);
+      document.getElementById('st-reset-sent').textContent = result.message;
+      document.getElementById('st-reset-open').href = 'forgot-password.html?token=' + encodeURIComponent(result.token);
+      showStep(2);
+    }
+    request.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!S.validEmail(resetEmail.value)) {
+        const fieldError = document.getElementById('st-reset-email-error');
+        fieldError.textContent = 'Enter a valid email address.'; resetEmail.setAttribute('aria-invalid', 'true'); resetEmail.focus(); return;
+      }
+      resetEmail.removeAttribute('aria-invalid'); document.getElementById('st-reset-email-error').textContent = '';
+      submittedEmail = resetEmail.value; send();
+    });
+    document.getElementById('st-reset-resend').addEventListener('click', () => { send(); UI.toast('If an account exists, a new reset link was sent.'); });
+    update.addEventListener('submit', (event) => {
+      event.preventDefault(); if (busy) return;
+      busy = true; const button = update.querySelector('[type="submit"]'); button.disabled = true;
+      const result = S.resetPassword(params.get('token'), document.getElementById('st-reset-password').value, document.getElementById('st-reset-confirm').value);
+      if (result.ok) { window.location.assign('login.html?reset=ok'); return; }
+      busy = false; button.disabled = false;
+      message.textContent = result.message; message.hidden = false; start.hidden = !result.invalid;
+      update.querySelectorAll('[aria-invalid]').forEach((input) => input.removeAttribute('aria-invalid'));
+      if (result.field) {
+        const input = document.getElementById('st-reset-' + result.field); input.setAttribute('aria-invalid', 'true'); input.focus();
+      } else message.focus();
+    });
+    // Do not inspect token validity here: unknown and expired links have identical screens.
+    showStep(params.has('token') ? 3 : 1, false);
+  }
 
   function showError(message) { error.textContent = message; error.hidden = false; }
   function setBusy(value) {

@@ -7,6 +7,18 @@
   const searchIcon = '<svg class="st-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg>';
   const logo = '<span class="st-logo">VOLTIX<span>.</span></span>';
 
+  const ORDER_STATUSES = Object.freeze({ pending: 'Pending', confirmed: 'Confirmed', delivered: 'Delivered', cancelled: 'Cancelled' });
+  function orderStatus(status) {
+    const known = typeof status === 'string' && Object.prototype.hasOwnProperty.call(ORDER_STATUSES, status);
+    return '<span class="st-order-status st-status-' + (known ? status : 'unknown') + '">' + (known ? ORDER_STATUSES[status] : 'Unavailable') + '</span>';
+  }
+  function orderDate(value, withTime = false) {
+    if (typeof value !== 'string') return 'Date unavailable';
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'Date unavailable';
+    return date.toLocaleString('en-US', Object.assign({ year: 'numeric', month: 'short', day: 'numeric' }, withTime ? { hour: 'numeric', minute: '2-digit' } : {}));
+  }
+
   function renderHeader() {
     const host = document.getElementById('st-header');
     if (!host) return;
@@ -144,6 +156,6 @@
   window.addEventListener('voltix:store-cart-changed', refreshCount);
   window.addEventListener('voltix:store-session-changed', () => { renderHeader(); renderFooter(); });
   window.addEventListener('pageshow', () => { renderHeader(); renderFooter(); window.dispatchEvent(new CustomEvent('voltix:store-refresh')); });
-  window.VoltixStoreUI = Object.freeze({ renderHeader, renderFooter, toast, stockBadge, productCard, renderCards, emptyCatalog, dialogHelper, categoryLink });
+  window.VoltixStoreUI = Object.freeze({ renderHeader, renderFooter, toast, stockBadge, productCard, renderCards, emptyCatalog, dialogHelper, categoryLink, orderStatus, orderDate });
   renderHeader(); renderFooter(); ensureToast();
 })(window, document);

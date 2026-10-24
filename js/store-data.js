@@ -4,6 +4,10 @@
   const KEYS = Object.freeze({ products: 'voltix_products', settings: 'voltix.settings', cart: 'voltix_store_cart', session: 'voltix_store_session', customers: 'voltix_customers', remember: 'voltix_store_remember_email', orders: 'voltix_orders', counters: 'voltix_store_counters' });
   const NEXT_PAGES = ['index', 'category', 'deals', 'product', 'cart', 'checkout', 'success', 'orders', 'order', 'profile'];
   const LOGIN_ERROR = 'Invalid email or password';
+  const RESET_KEY = 'voltix_store_reset';
+  const RESET_TTL = 15 * 60 * 1000;
+  const RESET_SENT = 'If an account exists for this email address, a reset link was sent.';
+  const RESET_INVALID = 'This reset link is invalid or has expired. Start again.';
   const BRANDS = Object.freeze({ APL: 'Apple', SAM: 'Samsung', GOO: 'Google', LEN: 'Lenovo', MS: 'Microsoft', ANK: 'Anker', UGR: 'Ugreen', SNY: 'Sony', NIN: 'Nintendo' });
   const DEALS = Object.freeze({
     'APL-IP15-128': Object.freeze({ amount: 50 }),
@@ -23,9 +27,9 @@
 
   /** Read only the explicitly allowed keys; unavailable/corrupt storage is harmless. */
   function safeRead(key, fallback) {
-    if (!Object.values(KEYS).includes(key)) return fallback;
+    if (!Object.values(KEYS).includes(key) && key !== RESET_KEY) return fallback;
     try {
-      const storage = key === KEYS.session ? window.sessionStorage : window.localStorage;
+      const storage = key === KEYS.session || key === RESET_KEY ? window.sessionStorage : window.localStorage;
       const raw = storage.getItem(key);
       return raw === null ? fallback : JSON.parse(raw);
     } catch (error) { return fallback; }
@@ -33,9 +37,9 @@
 
   /** Explicit write allowlist keeps staff data read-only. */
   function safeWrite(key, value) {
-    if (![KEYS.cart, KEYS.customers, KEYS.session, KEYS.remember, KEYS.orders, KEYS.counters].includes(key)) return false;
+    if (![KEYS.cart, KEYS.customers, KEYS.session, KEYS.remember, KEYS.orders, KEYS.counters, RESET_KEY].includes(key)) return false;
     try {
-      const storage = key === KEYS.session ? window.sessionStorage : window.localStorage;
+      const storage = key === KEYS.session || key === RESET_KEY ? window.sessionStorage : window.localStorage;
       storage.setItem(key, JSON.stringify(value));
       if (key === KEYS.cart) window.dispatchEvent(new CustomEvent('voltix:store-cart-changed'));
       if (key === KEYS.session) window.dispatchEvent(new CustomEvent('voltix:store-session-changed'));
@@ -240,16 +244,83 @@
     return Array.isArray(value) ? value.filter((order) => isRecord(order) && text(order.id) && text(order.customerId)) : [];
   };
 
-  /** Ownership is checked before a confirmation page receives any order data. */
+  /** Reject damaged snapshots without consulting current products or prices. */
+  function validOrder(order) {
+    // A damaged snapshot must produce an empty state, not a render exception.
+    if (!order || !Array.isArray(order.items) || !order.items.length || !isRecord(order.tax) || !isRecord(order.payment)) return null;
+    if (typeof order.date !== 'string' || !Number.isFinite(Date.parse(order.date)) || !['pending', 'confirmed', 'delivered', 'cancelled'].includes(order.status)) return null;
+    if (![order.subtotal, order.tax.rate, order.tax.amount, order.total].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0)) return null;
+    if (!order.items.every((item) => isRecord(item) && typeof item.name === 'string' && Number.isSafeInteger(item.quantity) && item.quantity > 0 && [item.unitPrice, item.lineTotal].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0))) return null;
+    return true;
+  }
+
+  /** Ownership is checked before any customer page receives order data. */
   function getOwnOrder(id) {
     const session = getSession();
     if (!session) return null;
     const order = getOrders().find((entry) => entry.id === id && entry.customerId === session.customerId);
-    // A damaged snapshot must produce an empty state, not a render exception.
-    if (!order || !Array.isArray(order.items) || !order.items.length || !isRecord(order.tax) || !isRecord(order.payment)) return null;
-    if (![order.subtotal, order.tax.rate, order.tax.amount, order.total].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0)) return null;
-    if (!order.items.every((item) => isRecord(item) && typeof item.name === 'string' && Number.isSafeInteger(item.quantity) && item.quantity > 0 && typeof item.lineTotal === 'number' && Number.isFinite(item.lineTotal) && item.lineTotal >= 0)) return null;
-    return order;
+    return validOrder(order) ? order : null;
+  }
+
+  function getOwnOrders() {
+    const session = getSession();
+    return session ? getOrders().filter((order) => order.customerId === session.customerId && validOrder(order))
+      .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0) || b.id.localeCompare(a.id)) : [];
+  }
+
+  /** Re-read under the same lock used by checkout; only pending orders may change. */
+  async function cancelOrder(id) {
+    function save() {
+      const order = getOwnOrder(id);
+      if (!order) return { ok: false, message: 'Order not found.' };
+      if (order.status !== 'pending') return { ok: false, message: 'Only pending orders can be cancelled.' };
+      const updated = Object.assign({}, order, { status: 'cancelled', statusHistory:
+        (Array.isArray(order.statusHistory) ? order.statusHistory : []).concat({ status: 'cancelled', date: new Date().toISOString() }) });
+      if (!safeWrite(KEYS.orders, getOrders().map((entry) => entry.id === id && entry.customerId === order.customerId ? updated : entry))) {
+        return { ok: false, message: 'Your order could not be cancelled. Please allow browser storage and try again.' };
+      }
+      window.dispatchEvent(new CustomEvent('voltix:order-cancelled', { detail: updated }));
+      return { ok: true, order: updated, message: 'Order cancelled.' };
+    }
+    try {
+      const locks = window.navigator && window.navigator.locks;
+      return locks ? await locks.request('voltix_store_order', save) : save();
+    } catch (error) { return { ok: false, message: 'Your order could not be cancelled. Please try again.' }; }
+  }
+
+  /** Generate equal-looking demo links for known and unknown addresses. */
+  function resetToken() {
+    const bytes = new Uint8Array(32);
+    try { window.crypto.getRandomValues(bytes); }
+    catch (error) { bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); }); }
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  /** Resend invalidates the previous token. Unknown emails never receive a stored token. */
+  function requestPasswordReset(value) {
+    const email = normalizeEmail(value), token = resetToken(), expiresAt = Date.now() + RESET_TTL;
+    const customers = getCustomers(), exists = customers.some((customer) => normalizeEmail(customer.email) === email);
+    try { window.sessionStorage.removeItem(RESET_KEY); }
+    catch (error) { return { message: RESET_SENT, token }; }
+    if (exists) safeWrite(RESET_KEY, { email, token, expiresAt });
+    // Identical response and navigation; the token is checked only on submission.
+    return { message: RESET_SENT, token };
+  }
+
+  /** Simulated reset only; the session token is valid for fifteen minutes in this tab. */
+  function resetPassword(token, password, confirm) {
+    if (!validPassword(password)) return { ok: false, field: 'password', message: 'Use at least 8 characters and one number.' };
+    if (password !== confirm) return { ok: false, field: 'confirm', message: 'Passwords must match.' };
+    const saved = safeRead(RESET_KEY, null), customers = getCustomers();
+    const customer = isRecord(saved) && customers.find((entry) => normalizeEmail(entry.email) === saved.email);
+    if (!customer || typeof token !== 'string' || !token || saved.token !== token || !Number.isFinite(saved.expiresAt) ||
+        saved.expiresAt <= Date.now() || saved.expiresAt > Date.now() + RESET_TTL) return { ok: false, invalid: true, message: RESET_INVALID };
+    // DEMO ONLY: production passwords require server-side hashing and reset verification.
+    const updated = customers.map((entry) => entry.id === customer.id ? Object.assign({}, entry, { passwordPlain: password }) : entry);
+    if (!safeWrite(KEYS.customers, updated)) return { ok: false, message: 'Your password could not be saved. Please allow browser storage and try again.' };
+    try { window.sessionStorage.removeItem(RESET_KEY); }
+    catch (error) { safeWrite(RESET_KEY, null); }
+    return { ok: true };
   }
 
   /** One validation result per field; payment contains only the demo method. */
@@ -399,5 +470,5 @@
     try { window.sessionStorage.removeItem(KEYS.session); window.dispatchEvent(new CustomEvent('voltix:store-session-changed')); return true; } catch (error) { return false; }
   }
 
-  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, getCustomer, getOwnOrder, validateCheckout, checkoutState, placeOrder, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
+  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, getCustomer, getOwnOrder, getOwnOrders, cancelOrder, requestPasswordReset, resetPassword, validateCheckout, checkoutState, placeOrder, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
 })(window);

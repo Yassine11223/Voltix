@@ -19,6 +19,7 @@ Folder `store/` at the repo root (customer pages), so paths use `../css/` and `.
 - css/store.css (all storefront styles, prefix `st-`)
 - js/store-data.js (shared data layer, global `VoltixStore`), js/store-ui.js (shared header/footer/toast/modal/mini-cart), and one controller per page: js/store-home.js, store-category.js, store-product.js, store-cart.js, store-checkout.js, store-auth.js, store-account.js
 - Stage 2B uses separate controllers: `js/store-checkout.js` for Checkout and `js/store-success.js` for Order success.
+- Stage 3A uses `js/store-orders.js` for Orders and `js/store-order.js` for Order details; Forgot password shares `js/store-auth.js` with Login.
 The shared header (logo, category bar, search, Sign in / account, Cart count) and footer are injected by store-ui.js into `<div id="st-header">` and `<div id="st-footer">` so pages stay small. The staff app's index.html is untouched; the storefront entry is store/index.html.
 
 ## 3. Data (read-only from the staff system)
@@ -78,6 +79,8 @@ Responsive down to 360px: grids collapse (4 -> 3 -> 2 -> 1 columns), header coll
 Small commented functions, constants at the top, each file in an IIFE exposing only what is needed, JSDoc on key functions. Edge cases: empty/corrupt storage, archived or deleted products still in a saved cart (show "No longer available" and remove), two tabs, double-click on Place order, negative/NaN quantities, very long names. Performance: build grids with DocumentFragment; smooth with 500+ products.
 
 ## 8. Known limitations (must be stated in the SRS)
+- Confirmed and Delivered statuses require manually changing order data in localStorage in Phase 1; there is no admin order screen.
+- The simulated reset token lives in sessionStorage, so the demo reset link works only in the same browser tab session.
 - No backend: orders are visible only in the browser that created them; no real email, no real payment, no real SSO (Google/Apple), no real password reset.
 - Passwords are stored in localStorage as plain text for the demo only; a real system needs server-side hashing.
 - Orders do not deduct stock and are not visible to staff; converting orders to sales is a future admin feature.
