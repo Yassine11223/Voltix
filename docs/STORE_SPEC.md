@@ -18,6 +18,7 @@ Folder `store/` at the repo root (customer pages), so paths use `../css/` and `.
 - store/index.html (Home), category.html, deals.html, product.html, cart.html, checkout.html, success.html, login.html, forgot-password.html, orders.html, order.html, profile.html
 - css/store.css (all storefront styles, prefix `st-`)
 - js/store-data.js (shared data layer, global `VoltixStore`), js/store-ui.js (shared header/footer/toast/modal/mini-cart), and one controller per page: js/store-home.js, store-category.js, store-product.js, store-cart.js, store-checkout.js, store-auth.js, store-account.js
+- Stage 2B uses separate controllers: `js/store-checkout.js` for Checkout and `js/store-success.js` for Order success.
 The shared header (logo, category bar, search, Sign in / account, Cart count) and footer are injected by store-ui.js into `<div id="st-header">` and `<div id="st-footer">` so pages stay small. The staff app's index.html is untouched; the storefront entry is store/index.html.
 
 ## 3. Data (read-only from the staff system)

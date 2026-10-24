@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout | Voltix</title>
+  <link rel="stylesheet" href="../css/store.css">
+  <script defer src="../js/store-data.js"></script>
+  <script defer src="../js/store-ui.js"></script>
+  <script defer src="../js/store-checkout.js"></script>
+</head>
+<body class="st-page">
+  <a class="st-skip" href="#st-main">Skip to content</a>
+  <div id="st-header"></div>
+  <main id="st-main" class="st-container st-main st-checkout-main">
+    <p class="st-eyebrow">Checkout</p>
+    <h1 class="st-page-heading">Delivery and payment</h1>
+    <div id="st-checkout-empty" class="st-empty st-panel" hidden>
+      <h2>Your cart is empty</h2><p>Add something you love before placing an order.</p>
+      <a class="st-button st-button-primary" href="category.html">Shop products</a>
+      <a class="st-button st-button-outline" href="cart.html">Back to cart</a>
+    </div>
+    <form id="st-checkout-form" class="st-checkout-layout" novalidate hidden>
+      <section class="st-panel st-checkout-details" aria-labelledby="st-details-heading">
+        <h2 id="st-details-heading">Your details</h2>
+        <div class="st-delivery-fields">
+          <div class="st-field"><label for="st-checkout-name">Full name</label><input id="st-checkout-name" name="name" autocomplete="name" placeholder="Full name" required aria-describedby="st-checkout-name-error"><span id="st-checkout-name-error" class="st-field-error"></span></div>
+          <div class="st-field"><label for="st-checkout-phone">Phone</label><input id="st-checkout-phone" name="phone" type="tel" autocomplete="tel" placeholder="Phone" required aria-describedby="st-checkout-phone-error"><span id="st-checkout-phone-error" class="st-field-error"></span></div>
+          <div class="st-field st-field-full"><label for="st-checkout-email">Email</label><input id="st-checkout-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required aria-describedby="st-checkout-email-error"><span id="st-checkout-email-error" class="st-field-error"></span></div>
+          <div class="st-field"><label for="st-checkout-city">City</label><input id="st-checkout-city" name="city" autocomplete="address-level1" placeholder="City" required aria-describedby="st-checkout-city-error"><span id="st-checkout-city-error" class="st-field-error"></span></div>
+          <div class="st-field"><label for="st-checkout-area">Area</label><input id="st-checkout-area" name="area" autocomplete="address-level2" placeholder="Area" required aria-describedby="st-checkout-area-error"><span id="st-checkout-area-error" class="st-field-error"></span></div>
+          <div class="st-field st-field-full"><label for="st-checkout-street">Street</label><input id="st-checkout-street" name="street" autocomplete="street-address" placeholder="Street, building and apartment" required aria-describedby="st-checkout-street-error"><span id="st-checkout-street-error" class="st-field-error"></span></div>
+        </div>
+        <fieldset class="st-payment" aria-describedby="st-checkout-method-error">
+          <legend>Payment</legend>
+          <div class="st-payment-options">
+            <label class="st-payment-option" for="st-payment-cod"><input id="st-payment-cod" name="method" type="radio" value="cod" checked required><span>Cash on delivery</span></label>
+            <label class="st-payment-option" for="st-payment-card"><input id="st-payment-card" name="method" type="radio" value="card"><span>Card</span></label>
+          </div>
+          <p id="st-card-note" class="st-payment-note" role="status" hidden>Demo only: no real payment is processed</p>
+          <span id="st-checkout-method-error" class="st-field-error"></span>
+        </fieldset>
+      </section>
+      <aside class="st-panel st-checkout-summary" aria-labelledby="st-summary-heading">
+        <h2 id="st-summary-heading">Order summary</h2>
+        <div id="st-checkout-summary" aria-live="polite"></div>
+        <div id="st-checkout-error" class="st-form-error" role="alert" tabindex="-1" hidden></div>
+        <button id="st-place-order" class="st-button st-button-primary st-wide" type="submit">Place order</button>
+      </aside>
+    </form>
+  </main>
+  <div id="st-footer"></div>
+  <noscript><p class="st-empty">Please enable JavaScript to check out.</p></noscript>
+</body>
+</html>

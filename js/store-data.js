@@ -1,7 +1,7 @@
 (function (window) {
   'use strict';
 
-  const KEYS = Object.freeze({ products: 'voltix_products', settings: 'voltix.settings', cart: 'voltix_store_cart', session: 'voltix_store_session', customers: 'voltix_customers', remember: 'voltix_store_remember_email' });
+  const KEYS = Object.freeze({ products: 'voltix_products', settings: 'voltix.settings', cart: 'voltix_store_cart', session: 'voltix_store_session', customers: 'voltix_customers', remember: 'voltix_store_remember_email', orders: 'voltix_orders', counters: 'voltix_store_counters' });
   const NEXT_PAGES = ['index', 'category', 'deals', 'product', 'cart', 'checkout', 'success', 'orders', 'order', 'profile'];
   const LOGIN_ERROR = 'Invalid email or password';
   const BRANDS = Object.freeze({ APL: 'Apple', SAM: 'Samsung', GOO: 'Google', LEN: 'Lenovo', MS: 'Microsoft', ANK: 'Anker', UGR: 'Ugreen', SNY: 'Sony', NIN: 'Nintendo' });
@@ -19,6 +19,7 @@
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
   const round2 = (value) => Math.round((finite(value) + Number.EPSILON) * 100) / 100;
   const text = (value, fallback = '') => typeof value === 'string' ? value : fallback;
+  let orderProcessing = false;
 
   /** Read only the explicitly allowed keys; unavailable/corrupt storage is harmless. */
   function safeRead(key, fallback) {
@@ -32,7 +33,7 @@
 
   /** Explicit write allowlist keeps staff data read-only. */
   function safeWrite(key, value) {
-    if (![KEYS.cart, KEYS.customers, KEYS.session, KEYS.remember].includes(key)) return false;
+    if (![KEYS.cart, KEYS.customers, KEYS.session, KEYS.remember, KEYS.orders, KEYS.counters].includes(key)) return false;
     try {
       const storage = key === KEYS.session ? window.sessionStorage : window.localStorage;
       storage.setItem(key, JSON.stringify(value));
@@ -230,6 +231,108 @@
     return Array.isArray(value) ? value.filter((c) => isRecord(c) && text(c.id) && text(c.email)) : [];
   };
 
+  const getCustomer = () => {
+    const session = getSession();
+    return session ? getCustomers().find((customer) => customer.id === session.customerId) || null : null;
+  };
+  const getOrders = () => {
+    const value = safeRead(KEYS.orders, []);
+    return Array.isArray(value) ? value.filter((order) => isRecord(order) && text(order.id) && text(order.customerId)) : [];
+  };
+
+  /** Ownership is checked before a confirmation page receives any order data. */
+  function getOwnOrder(id) {
+    const session = getSession();
+    if (!session) return null;
+    const order = getOrders().find((entry) => entry.id === id && entry.customerId === session.customerId);
+    // A damaged snapshot must produce an empty state, not a render exception.
+    if (!order || !Array.isArray(order.items) || !order.items.length || !isRecord(order.tax) || !isRecord(order.payment)) return null;
+    if (![order.subtotal, order.tax.rate, order.tax.amount, order.total].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0)) return null;
+    if (!order.items.every((item) => isRecord(item) && typeof item.name === 'string' && Number.isSafeInteger(item.quantity) && item.quantity > 0 && typeof item.lineTotal === 'number' && Number.isFinite(item.lineTotal) && item.lineTotal >= 0)) return null;
+    return order;
+  }
+
+  /** One validation result per field; payment contains only the demo method. */
+  function validateCheckout(value = {}) {
+    const details = {}, errors = {};
+    ['name', 'phone', 'email', 'city', 'area', 'street'].forEach((key) => { details[key] = text(value[key]).trim(); });
+    details.email = normalizeEmail(details.email);
+    details.method = value.method;
+    if (!details.name) errors.name = 'Enter your full name.';
+    if (!details.phone) errors.phone = 'Enter your phone number.';
+    else if (!/^\+?[\d\s().-]+$/.test(details.phone) || details.phone.replace(/\D/g, '').length < 8) errors.phone = 'Enter a valid phone number with at least 8 digits.';
+    if (!validEmail(details.email)) errors.email = 'Enter a valid email address.';
+    ['city', 'area', 'street'].forEach((key) => { if (!details[key]) errors[key] = 'Enter your ' + key + '.'; });
+    if (!['cod', 'card'].includes(details.method)) errors.method = 'Choose a payment method.';
+    return { details, errors, ok: Object.keys(errors).length === 0 };
+  }
+
+  /** Check the saved quantities without reconciling or changing the guest cart. */
+  function checkoutState(knownNames = new Map()) {
+    const raw = safeRead(KEYS.cart, []), items = readCart();
+    if (!Array.isArray(raw) || raw.some((item) => !isRecord(item) || !text(item.productId) || !Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) < 1)) {
+      return { ok: false, message: 'Your cart contains an invalid quantity. Please update it in your cart.' };
+    }
+    if (!items.length) return { ok: false, empty: true, message: 'Your cart is empty.' };
+    const products = new Map(getProducts().map((product) => [product.id, product]));
+    for (const item of items) {
+      const product = products.get(item.productId), name = product ? product.name : knownNames.get(item.productId) || 'Product ' + item.productId;
+      if (!product) return { ok: false, message: name + ' is no longer available. Please update your cart.' };
+      if (item.quantity > product.stock) return { ok: false, message: name + ': only ' + product.stock + ' in stock. Please update your cart.' };
+    }
+    return { ok: true, totals: cartTotals(items) };
+  }
+
+  /** Persist the order before touching the counter or cart. Never changes stock. */
+  function saveOrder(value, knownNames) {
+    const session = getSession(), customer = getCustomer();
+    if (!session || !customer) return { ok: false, message: 'Please sign in again before placing your order.', signIn: true };
+    const validation = validateCheckout(value);
+    if (!validation.ok) return { ok: false, errors: validation.errors };
+    const state = checkoutState(knownNames);
+    if (!state.ok) return state;
+    const orders = getOrders(), storedCounter = safeRead(KEYS.counters, {});
+    const counters = isRecord(storedCounter) ? storedCounter : {};
+    const savedNumber = Number(counters.order);
+    // Orders are authoritative if a previous counter write was unavailable.
+    const number = Math.max(Number.isSafeInteger(savedNumber) && savedNumber >= 0 ? savedNumber : 0,
+      orders.reduce((max, order) => Math.max(max, Number(/^ORD-(\d+)$/.exec(order.id)?.[1]) || 0), 0)) + 1;
+    if (!Number.isSafeInteger(number)) return { ok: false, message: 'An order number could not be created. Please contact the store.' };
+    const date = new Date().toISOString(), details = validation.details, totals = state.totals;
+    const order = { id: 'ORD-' + String(number).padStart(6, '0'), date, customerId: customer.id,
+      customerName: details.name, email: details.email, phone: details.phone,
+      address: { city: details.city, area: details.area, street: details.street },
+      items: totals.lines.map((line) => ({ productId: line.productId, name: line.product.name, sku: line.product.sku,
+        unitPrice: line.unitPrice, quantity: line.quantity, lineTotal: line.lineTotal })),
+      subtotal: totals.subtotal, tax: totals.tax, total: totals.total,
+      payment: { method: details.method, status: details.method === 'card' ? 'paid_demo' : 'unpaid' },
+      status: 'pending', statusHistory: [{ status: 'pending', date }] };
+    if (!safeWrite(KEYS.orders, orders.concat(order))) return { ok: false, message: 'Your order could not be saved. Your cart is unchanged. Please allow browser storage and try again.' };
+    safeWrite(KEYS.counters, Object.assign({}, counters, { order: number }));
+    let cartCleared = safeWrite(KEYS.cart, []);
+    // Removing a key can still succeed when storage is full and setItem fails.
+    if (!cartCleared) {
+      try {
+        window.localStorage.removeItem(KEYS.cart); cartCleared = true;
+        window.dispatchEvent(new CustomEvent('voltix:store-cart-changed'));
+      } catch (error) { /* The order is already saved: never ask for a resubmit. */ }
+    }
+    window.dispatchEvent(new CustomEvent('voltix:order-placed', { detail: order }));
+    return { ok: true, order, cartCleared };
+  }
+
+  /** Serialize cooperating tabs where Web Locks is available, including file://. */
+  async function placeOrder(value, knownNames) {
+    if (orderProcessing) return { ok: false, message: 'Your order is already being processed.' };
+    orderProcessing = true;
+    try {
+      const locks = window.navigator && window.navigator.locks;
+      return locks ? await locks.request('voltix_store_order', () => saveOrder(value, knownNames)) : saveOrder(value, knownNames);
+    } catch (error) {
+      return { ok: false, message: 'Your order could not be processed. Please try again.' };
+    } finally { orderProcessing = false; }
+  }
+
   /** Accept only a storefront filename and an optional, well-formed query. */
   function safeNext(value) {
     if (typeof value !== 'string' || /[\u0000-\u0020\\#]/.test(value)) return 'index.html';
@@ -296,5 +399,5 @@
     try { window.sessionStorage.removeItem(KEYS.session); window.dispatchEvent(new CustomEvent('voltix:store-session-changed')); return true; } catch (error) { return false; }
   }
 
-  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
+  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, getCustomer, getOwnOrder, validateCheckout, checkoutState, placeOrder, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
 })(window);
