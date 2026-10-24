@@ -8,6 +8,7 @@
   let pageSize = 10;
   let editingProduct = null;
   let lastTrigger = null;
+  let savingProduct = false;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -55,6 +56,7 @@
   }
 
   function render() {
+    renderSkuConflicts();
     const canWrite = store.can('product:write');
     const canDelete = store.can('product:delete');
     $('#addProductBtn').hidden = !canWrite;
@@ -75,6 +77,15 @@
     $('#stats').innerHTML = `<div class="stat-card"><span class="label">Total products</span><strong>${allProducts.filter((product) => product.status === 'active').length}</strong><span class="trend">Catalog items</span></div><div class="stat-card"><span class="label">Total stock units</span><strong>${allProducts.reduce((sum, product) => sum + product.stock, 0).toLocaleString()}</strong><span class="trend">Across all SKUs</span></div><div class="stat-card"><span class="label">Low stock</span><strong>${store.getLowStockProducts().filter((product) => product.stock > 0).length}</strong><span class="trend">Needs attention</span></div><div class="stat-card"><span class="label">Inventory value</span><strong>${store.formatCurrency(allProducts.reduce((sum, product) => sum + product.stock * product.cost, 0))}</strong><span class="trend">At cost</span></div>`;
   }
 
+  function renderSkuConflicts() {
+    const banner = $('#skuConflictBanner');
+    const conflicts = store.getSkuConflicts();
+    if (!conflicts.length) { banner.hidden = true; banner.replaceChildren(); return; }
+    const canWrite = store.can('product:write');
+    banner.hidden = false;
+    banner.innerHTML = `<strong>Duplicate SKUs need attention</strong><p>These existing records share a normalized SKU. No records were changed; edit one of the products to resolve each conflict.</p>${conflicts.map((conflict) => `<div class="sku-conflict-group"><strong>SKU ${escapeHtml(conflict.sku)}</strong><ul>${conflict.products.map((product) => `<li><span>${escapeHtml(product.id)} · ${escapeHtml(product.name)}</span>${canWrite ? `<button class="btn btn-quiet" type="button" data-conflict-edit="${escapeHtml(product.id)}">Edit</button>` : ''}</li>`).join('')}</ul></div>`).join('')}`;
+  }
+
   function closeModal() {
     modal.close();
     editingProduct = null;
@@ -86,20 +97,41 @@
     editingProduct = product;
     lastTrigger = trigger;
     const categories = [...new Set(store.getProducts().map((item) => item.category))].sort();
-    modal.open(`<div class="modal-backdrop" id="productBackdrop"><form class="modal" id="productForm" role="dialog" aria-modal="true" aria-labelledby="productModalTitle"><div class="modal-header"><h2 id="productModalTitle">${product ? 'Edit product' : 'Add product'}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label for="fName">Product name</label><input id="fName" required value="${escapeHtml(product?.name)}"><span class="error" data-error="name"></span></div><div class="field"><label for="fSku">SKU</label><input id="fSku" required value="${escapeHtml(product?.sku)}"><span class="error" data-error="sku"></span></div><div class="field"><label for="fCategory">Category</label><input id="fCategory" list="categoryList" required value="${escapeHtml(product?.category)}"><datalist id="categoryList">${categories.map((category) => `<option value="${escapeHtml(category)}">`).join('')}</datalist><span class="error" data-error="category"></span></div><div class="field"><label for="fSupplier">Supplier</label><select id="fSupplier"><option value="">Select supplier</option>${store.getSuppliers().map((supplier) => `<option value="${supplier.id}" ${product?.supplier === supplier.id ? 'selected' : ''}>${escapeHtml(supplier.name)}</option>`).join('')}</select></div><div class="field"><label for="fPrice">Selling price</label><input id="fPrice" type="number" min="0.01" step="0.01" required value="${product?.price ?? ''}"><span class="error" data-error="price"></span></div><div class="field"><label for="fCost">Cost</label><input id="fCost" type="number" min="0" step="0.01" value="${product?.cost ?? ''}"><span class="error" data-error="cost"></span></div>${product ? '' : '<div class="field"><label for="fStock">Initial stock</label><input id="fStock" type="number" min="0" step="1" value="0"><span class="error" data-error="stock"></span></div>'}<div class="field"><label for="fThreshold">Low-stock threshold</label><input id="fThreshold" type="number" min="0" step="1" value="${product?.lowStockThreshold ?? 5}"><span class="error" data-error="threshold"></span></div><div class="field full"><label for="fDescription">Description <span class="hint">Optional</span></label><textarea id="fDescription">${escapeHtml(product?.description)}</textarea></div></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">${product ? 'Save changes' : 'Add product'}</button></div></form></div>`, trigger);
+    modal.open(`<div class="modal-backdrop" id="productBackdrop"><form class="modal" id="productForm" role="dialog" aria-modal="true" aria-labelledby="productModalTitle"><div class="modal-header"><h2 id="productModalTitle">${product ? 'Edit product' : 'Add product'}</h2><button class="close touch-target" type="button" data-close aria-label="Close dialog">X</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label for="fName">Product name</label><input id="fName" required value="${escapeHtml(product?.name)}"><span class="error" data-error="name"></span></div><div class="field"><label for="fSku">SKU</label><input id="fSku" required value="${escapeHtml(product?.sku)}" aria-invalid="false" aria-describedby="fSkuError"><span class="error" id="fSkuError" data-error="sku"></span></div><div class="field"><label for="fCategory">Category</label><input id="fCategory" list="categoryList" required value="${escapeHtml(product?.category)}"><datalist id="categoryList">${categories.map((category) => `<option value="${escapeHtml(category)}">`).join('')}</datalist><span class="error" data-error="category"></span></div><div class="field"><label for="fSupplier">Supplier</label><select id="fSupplier"><option value="">Select supplier</option>${store.getSuppliers().map((supplier) => `<option value="${supplier.id}" ${product?.supplier === supplier.id ? 'selected' : ''}>${escapeHtml(supplier.name)}</option>`).join('')}</select></div><div class="field"><label for="fPrice">Selling price</label><input id="fPrice" type="number" min="0.01" step="0.01" required value="${product?.price ?? ''}"><span class="error" data-error="price"></span></div><div class="field"><label for="fCost">Cost</label><input id="fCost" type="number" min="0" step="0.01" value="${product?.cost ?? ''}"><span class="error" data-error="cost"></span></div>${product ? '' : '<div class="field"><label for="fStock">Initial stock</label><input id="fStock" type="number" min="0" step="1" value="0"><span class="error" data-error="stock"></span></div>'}<div class="field"><label for="fThreshold">Low-stock threshold</label><input id="fThreshold" type="number" min="0" step="1" value="${product?.lowStockThreshold ?? 5}"><span class="error" data-error="threshold"></span></div><div class="field full"><label for="fDescription">Description <span class="hint">Optional</span></label><textarea id="fDescription">${escapeHtml(product?.description)}</textarea></div></div></div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">${product ? 'Save changes' : 'Add product'}</button></div></form></div>`, trigger);
     $('#fName').focus();
     $('#productForm').addEventListener('submit', saveProduct);
+    $('#fSku').addEventListener('input', () => setSkuError(''));
+    $('#fSku').addEventListener('blur', () => setSkuError(store.validateSku($('#fSku').value, editingProduct?.id || '')));
     $('#productBackdrop').addEventListener('click', (event) => { if (event.target.id === 'productBackdrop' || event.target.matches('[data-close]')) closeModal(); });
+  }
+
+  function setSkuError(message) {
+    const field = $('#fSku');
+    const error = $('#fSkuError');
+    if (!field || !error) return;
+    error.textContent = message || '';
+    field.setAttribute('aria-invalid', String(Boolean(message)));
+    field.setAttribute('aria-describedby', 'fSkuError');
   }
 
   function saveProduct(event) {
     event.preventDefault();
-    if (!store.can('product:write')) return;
+    if (!store.can('product:write') || savingProduct) return;
+    savingProduct = true;
+    const submitButton = $('#productForm button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
     const isEditing = Boolean(editingProduct);
     const data = { name: $('#fName').value.trim(), sku: $('#fSku').value.trim(), category: $('#fCategory').value.trim(), supplier: $('#fSupplier').value, price: $('#fPrice').value, cost: $('#fCost').value, stock: isEditing ? editingProduct.stock : $('#fStock').value, lowStockThreshold: $('#fThreshold').value, description: $('#fDescription').value };
     const result = isEditing ? store.updateProduct(editingProduct.id, data) : store.addProduct(data);
-    if (!result.ok) { showToast(result.error, 'error'); return; }
+    if (!result.ok) {
+      if (String(result.error || '').toLowerCase().includes('sku')) { setSkuError(result.error); $('#fSku').focus(); }
+      else showToast(result.error, 'error');
+      savingProduct = false;
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
     closeModal(); renderFilters(); render(); showToast(isEditing ? 'Product updated' : 'Product added');
+    savingProduct = false;
   }
 
   function confirmProductAction(action, product, trigger) {
@@ -122,7 +154,7 @@
     let searchTimer; $('#search').addEventListener('input', () => { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(() => { currentPage = 1; render(); }, 250); });
     $('#resetBtn').addEventListener('click', () => { $('#search').value = ''; $('#categoryFilter').value = ''; $('#supplierFilter').value = ''; $('#statusFilter').value = ''; $('#sort').value = 'name'; currentPage = 1; render(); });
     $('#addProductBtn').addEventListener('click', (event) => { if (store.can('product:write')) openProductModal(null, event.currentTarget); });
-    document.addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) { const product = store.getProductById(button.dataset.id); if (!store.can('product:write')) return; if (button.dataset.action === 'edit') openProductModal(product, button); if (button.dataset.action === 'archive') confirmProductAction('archive', product, button); if (button.dataset.action === 'delete' && store.can('product:delete')) confirmProductAction('delete', product, button); } if (event.target.id === 'emptyAdd' && store.can('product:write')) openProductModal(null, event.target); if (event.target.id === 'prev') { currentPage -= 1; render(); } if (event.target.id === 'next') { currentPage += 1; render(); } });
+    document.addEventListener('click', (event) => { const conflictEdit = event.target.closest('[data-conflict-edit]'); if (conflictEdit && store.can('product:write')) { openProductModal(store.getProductById(conflictEdit.dataset.conflictEdit), conflictEdit); return; } const button = event.target.closest('[data-action]'); if (button) { const product = store.getProductById(button.dataset.id); if (!store.can('product:write')) return; if (button.dataset.action === 'edit') openProductModal(product, button); if (button.dataset.action === 'archive') confirmProductAction('archive', product, button); if (button.dataset.action === 'delete' && store.can('product:delete')) confirmProductAction('delete', product, button); } if (event.target.id === 'emptyAdd' && store.can('product:write')) openProductModal(null, event.target); if (event.target.id === 'prev') { currentPage -= 1; render(); } if (event.target.id === 'next') { currentPage += 1; render(); } });
     $('#pagination').addEventListener('change', (event) => { if (event.target.id === 'pageSize') { pageSize = Number(event.target.value); currentPage = 1; render(); } });
     window.addEventListener('voltix:data-changed', () => { renderFilters(); render(); });
   });

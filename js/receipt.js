@@ -3,6 +3,7 @@
   const store = window.VoltixPOSStore;
   const esc = store.escapeHtml;
   const money = (n) => esc(store.formatMoney(n));
+  const itemName = (item) => item?.name || item?.productName || store.getProductById(item?.productId || item?.id)?.name || `Deleted product (${item?.productId || item?.id || 'unknown'})`;
   let dialog = null;
   let previousFocus = null;
   let autoPrintTimer = null;
@@ -12,7 +13,7 @@
     const settings = store.getSettings();
     const refund = type === 'refund';
     const row = (label, value, strong = false) => `<div class="pos-receipt-row${strong ? ' pos-receipt-total' : ''}"><span>${esc(label)}</span><span>${value}</span></div>`;
-    const lines = record.items.map((item) => `<li><strong>${esc(item.name)}</strong>${row(item.quantity + ' \u00d7 ' + store.formatMoney(item.unitPrice), money(refund ? item.refundAmount : item.lineTotal))}${refund ? `<small>Reason: ${esc(item.reason)}</small>` : ''}</li>`).join('');
+    const lines = record.items.map((item) => `<li><strong>${esc(itemName(item))}</strong>${row(item.quantity + ' \u00d7 ' + store.formatMoney(item.unitPrice), money(refund ? item.refundAmount : item.lineTotal))}${refund ? `<small>Reason: ${esc(item.reason)}</small>` : ''}</li>`).join('');
     return `<article class="pos-receipt" aria-label="${refund ? 'Refund receipt' : 'Sale receipt'}">
       <header class="pos-receipt-header"><div class="pos-wordmark">VOLTIX</div><strong>${esc(settings.storeName)}</strong>
       ${[settings.storeAddress, settings.storePhone, settings.storeTaxId && 'Tax ID: ' + settings.storeTaxId].filter(Boolean).map((value) => `<div>${esc(value)}</div>`).join('')}

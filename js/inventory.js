@@ -63,19 +63,28 @@
   function renderHistory() {
     if (!store.can('movement:read')) return;
     const movements = store.getMovements();
-    $('#tabContent').innerHTML = `<div class="toolbar" style="margin-bottom:18px"><select id="movementType" aria-label="Movement type"><option value="">All movement types</option><option value="receive">Receives</option><option value="adjust">Adjustments</option><option value="sale">Sales</option><option value="return">Returns</option><option value="initial">Initial</option></select><input id="movementUser" placeholder="Filter by user" aria-label="Filter by user"><button class="btn btn-secondary" type="button" id="exportCsv">Export CSV</button></div><div class="table-wrap" role="region" aria-label="Inventory table" tabindex="0"><table class="data-table"><thead><tr><th>Date</th><th>Product</th><th>Type</th><th>Change</th><th>Before - After</th><th>User</th><th>Reference</th></tr></thead><tbody id="movementRows">${movementRows(movements)}</tbody></table></div>`;
-    const updateRows = () => { const type = $('#movementType').value; const user = $('#movementUser').value.trim(); $('#movementRows').innerHTML = movementRows(store.getMovements({ type, user })); };
+    const productOptions = [...new Map(movements.map((movement) => { const product = store.getProductById(movement.productId); return [movement.productId, { id: movement.productId, name: movement.productName || product?.name || `Deleted product (${movement.productId})`, deleted: !product }]; })).values()].sort((a, b) => a.name.localeCompare(b.name));
+    $('#tabContent').innerHTML = `<div class="toolbar" style="margin-bottom:18px"><select id="movementProduct" aria-label="Filter by product"><option value="">All products</option>${productOptions.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}${product.deleted ? ' (deleted)' : ''}</option>`).join('')}</select><select id="movementType" aria-label="Movement type"><option value="">All movement types</option><option value="receive">Receives</option><option value="adjust">Adjustments</option><option value="sale">Sales</option><option value="return">Returns</option><option value="initial">Initial</option><option value="delete">Deleted products</option></select><input id="movementUser" placeholder="Filter by user" aria-label="Filter by user"><button class="btn btn-secondary" type="button" id="exportCsv">Export CSV</button></div><div class="table-wrap" role="region" aria-label="Inventory table" tabindex="0"><table class="data-table"><thead><tr><th>Date</th><th>Product</th><th>SKU</th><th>Type</th><th>Change</th><th>Before - After</th><th>User</th><th>Reference</th></tr></thead><tbody id="movementRows">${movementRows(movements)}</tbody></table></div>`;
+    const updateRows = () => { const productId = $('#movementProduct').value; const type = $('#movementType').value; const user = $('#movementUser').value.trim(); $('#movementRows').innerHTML = movementRows(store.getMovements({ productId, type, user })); };
+    $('#movementProduct').addEventListener('change', updateRows);
     $('#movementType').addEventListener('change', updateRows); $('#movementUser').addEventListener('input', updateRows);
     $('#exportCsv').addEventListener('click', () => {
       if (!store.can('movement:read')) return;
-      const filtered = store.getMovements({ type: $('#movementType').value, user: $('#movementUser').value.trim() });
-      const csv = ['Date,Product,Type,Change,Before,After,User,Reference', ...filtered.map((movement) => { const product = store.getProductById(movement.productId) || {}; return [movement.date, product.name || movement.productId, movement.type, movement.change, movement.stockBefore, movement.stockAfter, movement.user, movement.reference].map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','); })].join('\n');
+      const filtered = store.getMovements({ productId: $('#movementProduct').value, type: $('#movementType').value, user: $('#movementUser').value.trim() });
+      const csv = ['Date,Product,SKU,Type,Change,Before,After,User,Reference', ...filtered.map((movement) => { const product = store.getProductById(movement.productId); const name = movement.productName || product?.name || `Deleted product (${movement.productId})`; const sku = movement.sku || product?.sku || ''; return [movement.date, name, sku, movement.type, movement.change, movement.stockBefore, movement.stockAfter, movement.user, movement.reference].map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','); })].join('\n');
       const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'voltix-movement-history.csv'; link.click(); URL.revokeObjectURL(link.href);
     });
   }
 
   function movementRows(movements) {
-    return movements.map((movement) => { const product = store.getProductById(movement.productId) || {}; const change = movement.change >= 0 ? `+${movement.change}` : movement.change; return `<tr><td>${new Date(movement.date).toLocaleString()}</td><td>${escapeHtml(product.name || movement.productId)}</td><td><span class="badge badge-neutral">${escapeHtml(movement.type)}</span></td><td class="movement-change">${change}</td><td>${movement.stockBefore} - ${movement.stockAfter}</td><td>${escapeHtml(movement.user)}</td><td>${escapeHtml(movement.reference || '-')}</td></tr>`; }).join('');
+    return movements.map((movement) => {
+      const product = store.getProductById(movement.productId);
+      const deleted = !product;
+      const name = movement.productName || product?.name || `Deleted product (${movement.productId})`;
+      const sku = movement.sku || product?.sku || '';
+      const change = movement.change >= 0 ? `+${movement.change}` : movement.change;
+      return `<tr><td>${escapeHtml(new Date(movement.date).toLocaleString())}</td><td class="movement-product${deleted ? ' subtle' : ''}">${escapeHtml(name)}${deleted ? ' <span class="badge badge-neutral">Deleted</span>' : ''}</td><td class="subtle">${escapeHtml(sku || '-')}</td><td><span class="badge badge-neutral">${escapeHtml(movement.type)}</span></td><td class="movement-change">${change}</td><td>${movement.stockBefore} - ${movement.stockAfter}</td><td>${escapeHtml(movement.user)}</td><td>${escapeHtml(movement.reference || '-')}</td></tr>`;
+    }).join('');
   }
 
   function openAdjustModal(productId, trigger = document.activeElement) {

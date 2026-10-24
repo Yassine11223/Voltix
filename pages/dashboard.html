@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/components.css">
   <link rel="stylesheet" href="../css/dashboard.css">
   <script src="../js/app.js" defer></script>
+  <script src="../js/inventory-store.js" defer></script>
   <script src="../js/dashboard.js" defer></script>
 </head>
 <body class="app-page">
@@ -77,12 +78,17 @@
                 <table><caption id="transactions-caption" class="sr-only">Recent transactions</caption><thead><tr id="transaction-columns"></tr></thead><tbody id="transactions-body"></tbody></table>
               </div>
               <div id="transactions-empty"></div>
-              <div class="panel-footer"><span class="status-dot" aria-hidden="true"></span>Awaiting sales data</div>
+              <div id="transactions-status" class="panel-footer"><span class="status-dot" aria-hidden="true"></span><span></span></div>
             </section>
 
             <section class="panel" aria-labelledby="stock-heading">
               <div class="panel-heading"><div><p class="eyebrow">INVENTORY WATCH</p><h2 id="stock-heading">Low-stock products</h2></div><a class="text-link" href="inventory.html">View inventory <span aria-hidden="true">↗</span></a></div>
-              <div class="stock-empty"><span class="empty-symbol stock-symbol"><svg class="icon" aria-hidden="true"><use href="#icon-products"/></svg></span><div><h3>Awaiting inventory data</h3><p>Low-stock products will appear here when stock records are available.</p><span id="stock-access-note" class="access-note"></span></div></div>
+              <div id="stock-content"></div>
+            </section>
+
+            <section class="panel" aria-labelledby="category-heading">
+              <div class="panel-heading"><div><p class="eyebrow">STOCK MIX</p><h2 id="category-heading">Stock by category</h2></div></div>
+              <div id="category-content"></div>
             </section>
           </div>
 

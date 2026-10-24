@@ -74,6 +74,7 @@
   }
 
   const getProducts = () => arrayAt(KEYS.products).filter((p) => p.status === 'active' && typeof p.id === 'string');
+  const getProductById = (id) => arrayAt(KEYS.products).find((product) => product.id === id);
   const getSales = () => arrayAt(KEYS.sales);
   const getReturns = () => arrayAt(KEYS.returns);
   /** One visibility rule for Sales, Returns and transaction validation. */
@@ -266,7 +267,7 @@
     if (!Number.isSafeInteger(before) || !Number.isSafeInteger(after)) throw new Error('Invalid stock amount.');
     let movementId = 'MV-' + id + '-' + (index + 1);
     while (movements.some((m) => m.id === movementId)) movementId += '-1';
-    movements.push({ id: movementId, productId: product.id, type, change: quantity,
+    movements.push({ id: movementId, productId: product.id, productName: String(product.name || 'Unnamed product'), sku: String(product.sku || ''), type, change: quantity,
       stockBefore: before, stockAfter: after, reason: type === 'sale' ? 'POS sale' : 'Stock return', reference: id, user, date });
     product.stock = after;
     product.updatedAt = date;
@@ -398,7 +399,7 @@
     return result;
   }
 
-  window.VoltixPOSStore = Object.freeze({ getSession, getSettings, getProducts, getSales, getReturns, visibleSales, returnRevision, calcReturnRefund,
+  window.VoltixPOSStore = Object.freeze({ getSession, getSettings, getProducts, getProductById, getSales, getReturns, visibleSales, returnRevision, calcReturnRefund,
     round2, formatMoney, formatDate, escapeHtml, getCart, setCart, canSeedDemoData, calcTotals, calcRefund, checkoutSale, processReturn,
     constants: Object.freeze({ DEFAULT_TAX_RATE, DEFAULT_CURRENCY_SYMBOL, MAX_STAFF_DISCOUNT_PERCENT,
       RETURN_WINDOW_DAYS, STAFF_CAN_PROCESS_RETURNS, STAFF_SALES_VISIBLE_DAYS, SALES_PAGE_SIZE, ENABLE_REPORTS_COMPAT_MIRROR }) });
