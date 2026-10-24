@@ -24,6 +24,7 @@
   const round2 = (value) => Math.round((finite(value) + Number.EPSILON) * 100) / 100;
   const text = (value, fallback = '') => typeof value === 'string' ? value : fallback;
   let orderProcessing = false;
+  let profileProcessing = false;
 
   /** Read only the explicitly allowed keys; unavailable/corrupt storage is harmless. */
   function safeRead(key, fallback) {
@@ -239,6 +240,61 @@
     const session = getSession();
     return session ? getCustomers().find((customer) => customer.id === session.customerId) || null : null;
   };
+
+  /** Validate editable fields against the latest record; delivery address is optional as a whole. */
+  function validateProfile(value = {}, customer = getCustomer(), customers = getCustomers()) {
+    const details = {}, errors = {};
+    ['name', 'phone', 'email', 'city', 'area', 'street'].forEach((key) => { details[key] = text(value[key]).trim(); });
+    details.email = normalizeEmail(details.email);
+    if (!details.name) errors.name = 'Enter your full name.';
+    if (!/^\+?[\d\s().-]+$/.test(details.phone) || details.phone.replace(/\D/g, '').length < 8) errors.phone = 'Enter a valid phone number with at least 8 digits.';
+    if (!validEmail(details.email)) errors.email = 'Enter a valid email address.';
+    else if (customers.some((entry) => entry.id !== (customer && customer.id) && normalizeEmail(entry.email) === details.email)) errors.email = 'An account with this email already exists.';
+    const addressFields = ['city', 'area', 'street'];
+    if (addressFields.some((key) => details[key])) addressFields.forEach((key) => { if (!details[key]) errors[key] = 'Enter your ' + key + ' or clear the entire delivery address.'; });
+    const changingPassword = ['current', 'password', 'confirm'].some((key) => text(value[key]) !== '');
+    if (changingPassword) {
+      if (!customer || customer.provider !== 'email') errors.current = 'Password changes are unavailable for simulated social accounts.';
+      else {
+        if (!text(value.current) || value.current !== customer.passwordPlain) errors.current = 'Current password is incorrect.';
+        if (!validPassword(value.password)) errors.password = 'Use at least 8 characters and one number.';
+        if (!text(value.confirm) || value.confirm !== value.password) errors.confirm = 'Passwords must match.';
+        details.password = value.password;
+      }
+    }
+    return { ok: Object.keys(errors).length === 0, details, errors };
+  }
+
+  /** One atomic customer-array write. Session/remember updates happen only after it succeeds. */
+  async function saveProfile(value) {
+    if (profileProcessing) return { ok: false, message: 'Your profile is already being saved.' };
+    profileProcessing = true;
+    function save() {
+      const customer = getCustomer(), customers = getCustomers();
+      if (!customer) return { ok: false, signIn: true, message: 'Please sign in again to edit your profile.' };
+      const validation = validateProfile(value, customer, customers);
+      if (!validation.ok) return { ok: false, errors: validation.errors };
+      const details = validation.details;
+      const updated = Object.assign({}, customer, { name: details.name, phone: details.phone, email: details.email,
+        address: { city: details.city, area: details.area, street: details.street } });
+      // DEMO ONLY: real passwords must be hashed and verified on a server.
+      if (details.password !== undefined) updated.passwordPlain = details.password;
+      if (!safeWrite(KEYS.customers, customers.map((entry) => entry.id === customer.id ? updated : entry))) {
+        return { ok: false, message: 'Your profile could not be saved. Nothing was changed. Please allow browser storage and try again.' };
+      }
+      const warnings = [];
+      if (!startSession(updated)) warnings.push('Your profile was saved, but the session could not be updated. Please sign in again.');
+      if (normalizeEmail(customer.email) !== updated.email && text(safeRead(KEYS.remember, '')).trim() && !rememberEmail(updated.email, true)) {
+        warnings.push('Your remembered email could not be updated. Enter your new email next time you sign in.');
+      }
+      return { ok: true, warnings };
+    }
+    try {
+      const locks = window.navigator && window.navigator.locks;
+      return locks ? await locks.request('voltix_store_customer', save) : await Promise.resolve().then(save);
+    } catch (error) { return { ok: false, message: 'Your profile could not be saved. Please try again.' }; }
+    finally { profileProcessing = false; }
+  }
   const getOrders = () => {
     const value = safeRead(KEYS.orders, []);
     return Array.isArray(value) ? value.filter((order) => isRecord(order) && text(order.id) && text(order.customerId)) : [];
@@ -433,7 +489,7 @@
     if (!validPassword(value.password)) return { ok: false, field: 'password', message: 'Use at least 8 characters and one number.' };
     if (value.password !== value.confirm) return { ok: false, field: 'confirm', message: 'Passwords must match.' };
     const customers = getCustomers();
-    if (customers.some((c) => normalizeEmail(c.email) === email)) return { ok: false, field: 'email', message: 'An account with this email already exists.' };
+    if (customers.some((c) => normalizeEmail(c.email) === email)) return { ok: false, field: 'email', general: true, message: 'An account with this email already exists.' };
     const number = customers.reduce((max, c) => Math.max(max, Number(/^C-(\d+)$/.exec(c.id)?.[1]) || 0), 0) + 1;
     const customer = { id: 'C-' + String(number).padStart(4, '0'), name, email, phone,
       passwordPlain: value.password, // DEMO ONLY: plaintext passwords must never be used in production.
@@ -470,5 +526,5 @@
     try { window.sessionStorage.removeItem(KEYS.session); window.dispatchEvent(new CustomEvent('voltix:store-session-changed')); return true; } catch (error) { return false; }
   }
 
-  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, getCustomer, getOwnOrder, getOwnOrders, cancelOrder, requestPasswordReset, resetPassword, validateCheckout, checkoutState, placeOrder, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
+  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, getCustomer, validateProfile, saveProfile, getOwnOrder, getOwnOrders, cancelOrder, requestPasswordReset, resetPassword, validateCheckout, checkoutState, placeOrder, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
 })(window);

@@ -31,7 +31,7 @@
       '<nav class="st-main-nav" aria-label="Main"><a href="category.html">Shop</a><a href="deals.html"' + (path === 'deals.html' ? ' aria-current="page"' : '') + '>Deals</a><a href="orders.html">My orders</a></nav>' +
       '<form class="st-search" action="category.html" method="get" role="search"><label class="st-sr-only" for="st-search-input">Search products</label><input id="st-search-input" type="search" name="q" placeholder="Search products" value="' + e(search) + '"><button type="submit" aria-label="Search">' + searchIcon + '</button></form>' +
       '<div class="st-account">' + (session ? '<details class="st-account-menu"><summary>' + e(session.name) + '</summary><div class="st-account-links"><a href="profile.html">Profile</a><a href="orders.html">My orders</a><button type="button" data-st-signout>Sign out</button></div></details>' : '<a class="st-signin" href="login.html">Sign in</a>') + '</div>' +
-      '<a class="st-button st-button-primary st-cart-link" href="cart.html">Cart (<span data-st-cart-count>' + S.cartCount() + '</span>)</a></div></header>' +
+      '<a class="st-button st-button-primary st-cart-link" href="cart.html"><span>Cart (<span data-st-cart-count>' + S.cartCount() + '</span>)</span></a></div></header>' +
       '<nav class="st-category-nav" aria-label="Product categories"><div class="st-container st-category-links"><a href="category.html">All categories</a>' +
       S.getCategories().map((category) => '<a href="' + e(categoryLink(category.name)) + '">' + e(category.name) + '</a>').join('') + '<a class="st-deals-link" href="deals.html">Deals</a></div></nav>';
   }
@@ -40,9 +40,12 @@
     const host = document.getElementById('st-footer');
     if (!host) return;
     const settings = S.getSettings();
+    const stored = S.safeRead(S.KEYS.settings, {}) || {};
+    const phone = typeof stored.storePhone === 'string' ? stored.storePhone.trim() : '';
+    const address = typeof stored.storeAddress === 'string' ? stored.storeAddress.trim() : '';
     host.innerHTML = '<footer class="st-footer"><div class="st-container"><div class="st-footer-grid"><div><a class="st-brand" href="index.html" aria-label="Voltix home">' + logo + '</a><p>Electronics store. Phones, laptops, audio and accessories.</p></div>' +
       '<nav aria-label="Footer shop"><h2>Shop</h2>' + S.getCategories().slice(0, 3).map((category) => '<a href="' + e(categoryLink(category.name)) + '">' + e(category.name) + '</a>').join('') + '<a href="category.html">All products</a></nav>' +
-      '<div><h2>Support</h2><button type="button" data-st-demo="Demo only: contact information will be added by the store.">Contact us</button><button type="button" data-st-demo="Demo only: returns policy will be added by the store.">Returns policy</button><p>' + e(settings.storePhone) + '</p><p class="st-footer-address">' + e(settings.address) + '</p></div>' +
+      '<div><h2>Support</h2><button type="button" data-st-demo="Demo only: contact information will be added by the store.">Contact us</button><button type="button" data-st-demo="Demo only: returns policy will be added by the store.">Returns policy</button>' + (phone ? '<p class="st-footer-phone">' + e(phone) + '</p>' : '') + (address ? '<p class="st-footer-address">' + e(address) + '</p>' : '') + '</div>' +
       '<div><h2>Payment</h2><p>Cash on delivery</p><p>Card</p><a href="' + e(S.checkoutLink()) + '">Checkout</a></div></div><div class="st-footer-bottom">Voltix Phase 1 demo <span>' + e(settings.storeName) + '</span></div></div></footer>';
   }
 

@@ -122,11 +122,12 @@
     const value = Object.fromEntries(new FormData(register));
     const result = S.registerCustomer(value);
     if (result.ok) { window.location.assign(next); return; }
-    setBusy(false); showError(result.message);
+    setBusy(false);
+    if (!result.field || result.general) showError(result.message);
     if (result.field) {
       const input = register.elements.namedItem(result.field);
       input.setAttribute('aria-invalid', 'true');
-      document.getElementById('st-' + result.field + '-error').textContent = result.message;
+      if (!result.general) document.getElementById('st-' + result.field + '-error').textContent = result.message;
       input.focus();
     }
   });

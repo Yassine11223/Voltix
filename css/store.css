@@ -488,6 +488,35 @@
 .st-reset-check { margin: 24px 0; width: 48px; height: 48px; }
 .st-reset-panel > .st-button { margin-bottom: 12px; }
 .st-reset-panel .st-demo-note { margin-block: 12px 0; }
+/* Stage 3B: one customer profile and one saved delivery address. */
+.st-profile-main { padding-bottom: 76px; }
+.st-profile-layout { display: grid; grid-template-columns: 228px minmax(0, 1fr); align-items: start; gap: 24px; }
+.st-profile-nav { display: grid; padding: 12px; }
+.st-profile-nav a, .st-profile-nav button { display: block; min-height: 44px; padding: 12px 14px; border: 0; border-radius: 10px; color: var(--st-muted); background: white; text-align: left; font-weight: 600; }
+.st-profile-nav [aria-current] { color: #1945cb; background: var(--st-blue-soft); }
+.st-profile-nav :is(a, button):hover { color: #1945cb; background: var(--st-blue-soft); text-decoration: none; }
+.st-profile-form { display: grid; min-width: 0; gap: 20px; }
+.st-profile-form > p { margin: 0; }
+.st-profile-section { padding: 20px; scroll-margin-top: 24px; }
+.st-profile-section h2 { margin-bottom: 22px; font-size: 20px; }
+.st-profile-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.st-profile-section-heading h2 { margin-bottom: 0; }
+.st-profile-avatar { display: grid; flex-shrink: 0; place-items: center; width: 54px; height: 54px; border-radius: 50%; color: #1945cb; background: var(--st-blue-soft); font-size: 18px; font-weight: 700; }
+.st-profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.st-profile-password-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.st-profile-password-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.st-profile-help { margin: 12px 0 0; color: var(--st-muted); font-size: 12px; }
+.st-profile-section > .st-profile-help { margin: -12px 0 20px; }
+.st-profile-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 899px) {
+  .st-profile-layout { grid-template-columns: minmax(0, 1fr); }
+  .st-profile-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .st-profile-fields { grid-template-columns: minmax(0, 1fr); }
+  .st-profile-section { padding: 20px 16px; }
+  .st-profile-nav a, .st-profile-nav button { padding-inline: 10px; font-size: 14px; }
+}
 @media (max-width: 899px) {
   .st-order-layout { grid-template-columns: minmax(0, 1fr); }
 }
