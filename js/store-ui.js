@@ -31,7 +31,7 @@
     host.innerHTML = '<footer class="st-footer"><div class="st-container"><div class="st-footer-grid"><div><a class="st-brand" href="index.html" aria-label="Voltix home">' + logo + '</a><p>Electronics store. Phones, laptops, audio and accessories.</p></div>' +
       '<nav aria-label="Footer shop"><h2>Shop</h2>' + S.getCategories().slice(0, 3).map((category) => '<a href="' + e(categoryLink(category.name)) + '">' + e(category.name) + '</a>').join('') + '<a href="category.html">All products</a></nav>' +
       '<div><h2>Support</h2><button type="button" data-st-demo="Demo only: contact information will be added by the store.">Contact us</button><button type="button" data-st-demo="Demo only: returns policy will be added by the store.">Returns policy</button><p>' + e(settings.storePhone) + '</p><p class="st-footer-address">' + e(settings.address) + '</p></div>' +
-      '<div><h2>Payment</h2><p>Cash on delivery</p><p>Card</p><a href="checkout.html">Checkout</a></div></div><div class="st-footer-bottom">Voltix Phase 1 demo <span>' + e(settings.storeName) + '</span></div></div></footer>';
+      '<div><h2>Payment</h2><p>Cash on delivery</p><p>Card</p><a href="' + e(S.checkoutLink()) + '">Checkout</a></div></div><div class="st-footer-bottom">Voltix Phase 1 demo <span>' + e(settings.storeName) + '</span></div></div></footer>';
   }
 
   function ensureToast() {
@@ -52,9 +52,9 @@
     toastTimer = setTimeout(() => region.classList.remove('st-toast-visible'), 4500);
   }
 
-  function stockBadge(product) {
+  function stockBadge(product, showCount = false) {
     const state = !product.stock ? 'out' : product.stock <= product.lowStockThreshold ? 'low' : 'in';
-    const label = state === 'out' ? 'Out of stock' : state === 'low' ? 'Only ' + product.stock + ' left' : 'In stock';
+    const label = state === 'out' ? 'Out of stock' : state === 'low' ? 'Only ' + product.stock + ' left' : 'In stock' + (showCount ? ': ' + product.stock : '');
     return '<span class="st-stock st-stock-' + state + '">' + label + '</span>';
   }
 
@@ -142,6 +142,7 @@
     window.dispatchEvent(new CustomEvent('voltix:store-refresh'));
   });
   window.addEventListener('voltix:store-cart-changed', refreshCount);
+  window.addEventListener('voltix:store-session-changed', () => { renderHeader(); renderFooter(); });
   window.addEventListener('pageshow', () => { renderHeader(); renderFooter(); window.dispatchEvent(new CustomEvent('voltix:store-refresh')); });
   window.VoltixStoreUI = Object.freeze({ renderHeader, renderFooter, toast, stockBadge, productCard, renderCards, emptyCatalog, dialogHelper, categoryLink });
   renderHeader(); renderFooter(); ensureToast();

@@ -1,7 +1,9 @@
 (function (window) {
   'use strict';
 
-  const KEYS = Object.freeze({ products: 'voltix_products', settings: 'voltix.settings', cart: 'voltix_store_cart', session: 'voltix_store_session' });
+  const KEYS = Object.freeze({ products: 'voltix_products', settings: 'voltix.settings', cart: 'voltix_store_cart', session: 'voltix_store_session', customers: 'voltix_customers', remember: 'voltix_store_remember_email' });
+  const NEXT_PAGES = ['index', 'category', 'deals', 'product', 'cart', 'checkout', 'success', 'orders', 'order', 'profile'];
+  const LOGIN_ERROR = 'Invalid email or password';
   const BRANDS = Object.freeze({ APL: 'Apple', SAM: 'Samsung', GOO: 'Google', LEN: 'Lenovo', MS: 'Microsoft', ANK: 'Anker', UGR: 'Ugreen', SNY: 'Sony', NIN: 'Nintendo' });
   const DEALS = Object.freeze({
     'APL-IP15-128': Object.freeze({ amount: 50 }),
@@ -28,12 +30,14 @@
     } catch (error) { return fallback; }
   }
 
-  /** Only the storefront cart can be written by this browsing-stage data layer. */
+  /** Explicit write allowlist keeps staff data read-only. */
   function safeWrite(key, value) {
-    if (key !== KEYS.cart) return false;
+    if (![KEYS.cart, KEYS.customers, KEYS.session, KEYS.remember].includes(key)) return false;
     try {
-      window.localStorage.setItem(key, JSON.stringify(value));
-      window.dispatchEvent(new CustomEvent('voltix:store-cart-changed'));
+      const storage = key === KEYS.session ? window.sessionStorage : window.localStorage;
+      storage.setItem(key, JSON.stringify(value));
+      if (key === KEYS.cart) window.dispatchEvent(new CustomEvent('voltix:store-cart-changed'));
+      if (key === KEYS.session) window.dispatchEvent(new CustomEvent('voltix:store-session-changed'));
       return true;
     } catch (error) { return false; }
   }
@@ -173,23 +177,124 @@
     const products = new Map(getProducts().map((p) => [p.id, p]));
     return readCart().reduce((total, item) => total + (products.has(item.productId) ? Math.min(item.quantity, products.get(item.productId).stock) : 0), 0);
   }
-  function addToCart(productId) {
+  /** Add a requested quantity, including quantities already in the guest cart. */
+  function addToCart(productId, quantity = 1) {
     const product = getProducts().find((p) => p.id === productId);
     if (!product) return { ok: false, message: 'No longer available.' };
     if (!product.stock) return { ok: false, message: 'Out of stock.' };
     const cart = readCart(), item = cart.find((entry) => entry.productId === productId);
-    if (item && item.quantity >= product.stock) return { ok: false, message: 'Only ' + product.stock + ' in stock. Your cart already has the available quantity.' };
-    if (item) item.quantity += 1;
-    else cart.push({ productId, quantity: 1 });
-    return writeCart(cart) ? { ok: true, message: product.name + ' added to cart.' } : { ok: false, message: 'Your cart could not be saved. Please allow browser storage and try again.' };
+    const requested = Math.max(1, Math.floor(finite(quantity, 1)));
+    const desired = (item ? item.quantity : 0) + requested;
+    if (item) item.quantity = Math.min(desired, product.stock);
+    else cart.push({ productId, quantity: Math.min(requested, product.stock) });
+    return writeCart(cart) ? { ok: true, message: desired > product.stock ? 'Only ' + product.stock + ' in stock' : product.name + ' added to cart.' } : { ok: false, message: 'Your cart could not be saved. Please allow browser storage and try again.' };
+  }
+
+  /** Re-read live products, remove unavailable lines and persist stock corrections. */
+  function reconcileCart() {
+    const products = new Map(getProducts().map((p) => [p.id, p]));
+    const saved = readCart(), items = [], notices = [];
+    saved.forEach((item) => {
+      const product = products.get(item.productId);
+      if (!product || !product.stock) {
+        notices.push({ productId: item.productId, name: product ? product.name : item.productId, message: product ? 'Out of stock. Removed from your cart.' : 'No longer available. Removed from your cart.' });
+        return;
+      }
+      const quantity = Math.min(item.quantity, product.stock);
+      if (quantity !== item.quantity) notices.push({ productId: item.productId, name: product.name, message: 'Only ' + product.stock + ' in stock' });
+      items.push({ productId: item.productId, quantity });
+    });
+    const changed = JSON.stringify(saved) !== JSON.stringify(items);
+    const ok = !changed || writeCart(items);
+    return { items, notices, ok };
+  }
+
+  /** One totals function for cart and future checkout/orders; all prices include deals. */
+  function cartTotals(items = readCart()) {
+    const products = new Map(getProducts().map((p) => [p.id, p]));
+    const lines = normalizeCart(items).filter((item) => products.has(item.productId) && products.get(item.productId).stock > 0).map((item) => {
+      const product = products.get(item.productId), quantity = Math.min(item.quantity, product.stock);
+      const unitPrice = dealPrice(product);
+      return { product, productId: product.id, quantity, unitPrice, lineTotal: round2(unitPrice * quantity) };
+    });
+    const subtotal = round2(lines.reduce((sum, line) => sum + line.lineTotal, 0));
+    const rate = getSettings().taxRate, amount = round2(subtotal * rate / 100);
+    return { lines, subtotal, tax: { rate, amount }, total: round2(subtotal + amount) };
+  }
+
+  const normalizeEmail = (value) => text(value).trim().toLowerCase();
+  const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+  const validPassword = (value) => typeof value === 'string' && value.length >= 8 && /\d/.test(value);
+  const getCustomers = () => {
+    const value = safeRead(KEYS.customers, []);
+    return Array.isArray(value) ? value.filter((c) => isRecord(c) && text(c.id) && text(c.email)) : [];
+  };
+
+  /** Accept only a storefront filename and an optional, well-formed query. */
+  function safeNext(value) {
+    if (typeof value !== 'string' || /[\u0000-\u0020\\#]/.test(value)) return 'index.html';
+    const match = /^([a-z-]+)\.html(?:\?([^#]*))?$/.exec(value);
+    if (!match || !NEXT_PAGES.includes(match[1])) return 'index.html';
+    try {
+      if (/[\u0000-\u001f\u007f\\]/.test(decodeURIComponent(match[2] || ''))) return 'index.html';
+    } catch (error) { return 'index.html'; }
+    return match[1] + '.html' + (match[2] ? '?' + new URLSearchParams(match[2]).toString() : '');
+  }
+  const checkoutLink = () => getSession() ? 'checkout.html' : 'login.html?next=checkout.html';
+
+  function rememberEmail(email, remember) {
+    if (remember) return safeWrite(KEYS.remember, normalizeEmail(email));
+    try { window.localStorage.removeItem(KEYS.remember); return true; } catch (error) { return false; }
+  }
+  function startSession(customer) {
+    return safeWrite(KEYS.session, { customerId: customer.id, name: customer.name, email: customer.email });
+  }
+
+  /** Demo identity only: a real application must authenticate on a server. */
+  function registerCustomer(value) {
+    const email = normalizeEmail(value.email), name = text(value.name).trim(), phone = text(value.phone).trim();
+    if (!name) return { ok: false, field: 'name', message: 'Enter your full name.' };
+    if (!validEmail(email)) return { ok: false, field: 'email', message: 'Enter a valid email address.' };
+    if (!phone) return { ok: false, field: 'phone', message: 'Enter your phone number.' };
+    if (!validPassword(value.password)) return { ok: false, field: 'password', message: 'Use at least 8 characters and one number.' };
+    if (value.password !== value.confirm) return { ok: false, field: 'confirm', message: 'Passwords must match.' };
+    const customers = getCustomers();
+    if (customers.some((c) => normalizeEmail(c.email) === email)) return { ok: false, field: 'email', message: 'An account with this email already exists.' };
+    const number = customers.reduce((max, c) => Math.max(max, Number(/^C-(\d+)$/.exec(c.id)?.[1]) || 0), 0) + 1;
+    const customer = { id: 'C-' + String(number).padStart(4, '0'), name, email, phone,
+      passwordPlain: value.password, // DEMO ONLY: plaintext passwords must never be used in production.
+      address: { city: '', area: '', street: '' }, createdAt: new Date().toISOString(), provider: 'email' };
+    if (!safeWrite(KEYS.customers, customers.concat(customer))) return { ok: false, message: 'Your account could not be saved. Please allow browser storage and try again.' };
+    return startSession(customer) ? { ok: true } : { ok: false, message: 'Account created. Please allow session storage, then sign in.' };
+  }
+
+  function signIn(email, password) {
+    const customer = getCustomers().find((c) => normalizeEmail(c.email) === normalizeEmail(email) && c.provider === 'email' && typeof password === 'string' && password.length > 0 && c.passwordPlain === password);
+    return customer && startSession(customer) ? { ok: true } : { ok: false, message: LOGIN_ERROR };
+  }
+
+  function socialSignIn(provider) {
+    if (!['google', 'apple'].includes(provider)) return { ok: false, message: LOGIN_ERROR };
+    const customers = getCustomers();
+    let customer = customers.find((c) => c.provider === provider);
+    if (!customer) {
+      const number = customers.reduce((max, c) => Math.max(max, Number(/^C-(\d+)$/.exec(c.id)?.[1]) || 0), 0) + 1;
+      let email = provider + '.demo@voltix.example';
+      while (customers.some((c) => normalizeEmail(c.email) === email)) email = 'demo.' + number + '.' + email;
+      customer = { id: 'C-' + String(number).padStart(4, '0'), name: (provider === 'google' ? 'Google' : 'Apple') + ' Demo', email, phone: '',
+        passwordPlain: '', // DEMO ONLY: simulated social identity; no real SSO token or password.
+        address: { city: '', area: '', street: '' }, createdAt: new Date().toISOString(), provider };
+      if (!safeWrite(KEYS.customers, customers.concat(customer))) return { ok: false, message: 'Demo account could not be saved. Please allow browser storage.' };
+    }
+    return startSession(customer) ? { ok: true, message: 'Demo only: social sign-in is simulated' } : { ok: false, message: LOGIN_ERROR };
   }
   function getSession() {
     const value = safeRead(KEYS.session, null);
     return isRecord(value) && text(value.customerId) && text(value.name) ? { customerId: value.customerId, name: value.name, email: text(value.email) } : null;
   }
   function signOut() {
-    try { window.sessionStorage.removeItem(KEYS.session); return true; } catch (error) { return false; }
+    try { window.sessionStorage.removeItem(KEYS.session); window.dispatchEvent(new CustomEvent('voltix:store-session-changed')); return true; } catch (error) { return false; }
   }
 
-  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, getSession, signOut });
+  window.VoltixStore = Object.freeze({ KEYS, DEALS, safeRead, safeWrite, getSettings, getProducts, deriveBrand, safeImage, getDeal, dealPrice, getDeals, getCategories, getBrands, filterProducts, normalizeQuery, parseQuery, serializeQuery, round2, money, escapeHtml, readCart, writeCart, cartCount, addToCart, reconcileCart, cartTotals, getSession, signOut, normalizeEmail, validEmail, validPassword, safeNext, checkoutLink, rememberEmail, registerCustomer, signIn, socialSignIn });
 })(window);

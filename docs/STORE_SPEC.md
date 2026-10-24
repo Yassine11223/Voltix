@@ -11,6 +11,7 @@ Branch: `feature/customer-store`. This is separate from the admin/staff system a
 - Customer pages must NEVER read or write the staff session (`sessionStorage["voltix.session"]`) or `voltix_session`. Customers are a separate world.
 - Escape all user text before inserting into HTML (escapeHtml). No console errors. No dead buttons. Every visible control works or shows a clear "Demo only" message.
 - Do not use external CDNs, fonts or images. Inline SVG icons only. System font stack.
+- No Wishlist and no extra pages beyond the pages listed in this spec (owner decision).
 
 ## 2. Files (all new)
 Folder `store/` at the repo root (customer pages), so paths use `../css/` and `../js/`:
@@ -49,7 +50,7 @@ Order:
 
 Rules:
 - Placing an order does NOT deduct stock and does NOT create a staff sale (front-end only; converting orders into sales is a future admin feature). It must still validate quantity <= current stock at checkout and block with a clear message otherwise.
-- Totals: subtotal (using deal prices if the item is on deal), tax on subtotal at taxRate, total.
+- Deal prices apply everywhere: Product, Cart and orders. Use one shared effective-price function (`dealPrice`) and one shared cart-totals function (`cartTotals`) in store-data.js: subtotal, tax at settings taxRate (default 14), and total, all rounded with `round2`.
 - Dispatch `voltix:order-placed` (detail = order) and write `voltix_lastUpdate`? NO: do not touch staff keys. Only dispatch the event.
 - A customer sees only their own orders. They may cancel a pending order (status cancelled, statusHistory updated).
 
@@ -60,7 +61,7 @@ Visual reference: the design screenshots attached to the Codex message, plus the
 3. Deals (deals.html): banner with a "Ends in" countdown (simulated, resets at the next midnight), category chips, Sort by biggest discount, deal cards with discount badge and struck-through old price.
 4. Product (product.html?id=P-1001): breadcrumb, image area with thumbnails (placeholders), brand, name, SKU, price (deal price if any), stock badge, quantity stepper (min 1, max stock, toast "Only N in stock"), Add to cart, Buy now (adds and goes to checkout), tabs Description / Specifications (Category, Brand, SKU, Availability), Related products (same category, up to 4, includes out-of-stock cards with disabled button). Unknown or archived id: friendly "Product not found" state.
 5. Cart (cart.html): lines with image, name, unit price, quantity stepper, line total, remove; summary (Subtotal, Tax, Total); Checkout button; empty-cart state. Re-validate against live stock on every change; clamp and toast.
-6. Checkout (checkout.html): requires a customer session, otherwise redirect to login.html?next=checkout.html. Form: full name, phone, email, city, area, street, payment (Cash on delivery | Card). Card shows number/expiry/CVC fields for show only (simulated, never stored, never validated beyond format; clearly labeled "Demo only"). Prefill from the profile. Inline validation messages. "Place order" disabled while processing. On success: create order, clear the cart, go to success.html?id=ORD-000001.
+6. Checkout (checkout.html): requires a customer session, otherwise redirect to login.html?next=checkout.html. Form: full name, phone, email, city, area, street, payment is a choice between Cash on delivery and Card. When Card is selected, only a "Demo only: no real payment is processed" note is shown; there are no card fields and nothing card-related is stored. Prefill from the profile. Inline validation messages. "Place order" disabled while processing. On success: create order, clear the cart, go to success.html?id=ORD-000001.
 7. Success (success.html): check icon, order number, status Pending, items and totals, buttons "Track my orders" and "Continue shopping".
 8. Login / Register (login.html): tabs Sign in / Create account (name, email, phone, password, confirm). Under the Sign in button: divider "or continue with" and buttons "Continue with Google" and "Continue with Apple" which are SIMULATED: they sign in (or create) a demo customer with provider google/apple and show a toast "Demo only: social sign-in is simulated". Show/hide password toggle. Remember me (store email only). Validation: email format, password min 8 chars, unique email. `next` query param redirects after login. Generic error "Invalid email or password".
 9. Forgot password (forgot-password.html): 3 steps. (1) enter email; (2) "Check your email" screen (always generic, never reveals whether the account exists; includes a Demo-only note and a visible "Open reset link (demo)" button that carries the token because no email can be sent); (3) set new password and confirm (min 8 chars, one number), token expires in 15 minutes, then redirect to login with a success message.
