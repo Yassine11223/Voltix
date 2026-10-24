@@ -623,6 +623,14 @@ textarea {
 .tab { white-space:nowrap; }
 .tabs { overflow-x:auto; }
 .read-only-note { margin:-12px 0 24px; color:var(--color-muted); font-size:12px; }
+.sku-conflict-banner { margin:-10px 0 24px; padding:16px 18px; border:1px solid #f7d994; border-radius:12px; color:#725b24; background:#fff8e8; }
+.sku-conflict-banner > strong { display:block; color:#8b5c00; }
+.sku-conflict-banner > p { margin:5px 0 10px; font-size:12px; }
+.sku-conflict-group { margin-top:10px; padding-top:10px; border-top:1px solid #f7d994; }
+.sku-conflict-group > strong { font-size:12px; }
+.sku-conflict-group ul { list-style:none; margin:6px 0 0; padding:0; }
+.sku-conflict-group li { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0; font-size:12px; }
+.sku-conflict-group .btn { min-height:32px; padding:4px 8px; }
 .data-table th { background:#fafbfd; }
 .toast-region { z-index:70; max-width:calc(100vw - 32px); }
 .toast { min-width:0; overflow-wrap:anywhere; }

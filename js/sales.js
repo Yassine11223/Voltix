@@ -5,6 +5,8 @@
   const STATUS = Object.freeze({ completed: 'Completed', partially_returned: 'Partially returned', fully_returned: 'Fully returned' });
   const amount = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e12 ? value : 0;
   const linesOf = (sale) => Array.isArray(sale.items) ? sale.items.filter((line) => line && typeof line === 'object') : [];
+  const lineName = (line) => line.name || line.productName || store.getProductById(line.productId || line.id)?.name || `Deleted product (${line.productId || line.id || 'unknown'})`;
+  const lineSku = (line) => line.sku || store.getProductById(line.productId || line.id)?.sku || '';
   const itemCount = (sale) => linesOf(sale).reduce((sum, line) => sum + (Number.isSafeInteger(line.quantity) && line.quantity > 0 && line.quantity <= 1e6 ? line.quantity : 0), 0);
 
   const visibleSales = store.visibleSales;
@@ -167,7 +169,7 @@
     const returns = sortSales(store.getReturns().filter((record) => record.saleId === sale.id));
     $('sales-detail-content').innerHTML = `<p class="sales-muted">${esc(store.formatDate(sale.date))} \u00b7 ${esc(sale.cashierName)}</p>
       ${badge(sale.status)}${sale.customerName ? `<p>Customer: ${esc(sale.customerName)}</p>` : ''}
-      <h3>Line items</h3><ul class="sales-lines">${linesOf(sale).map((line) => `<li><div><strong>${esc(line.name)}</strong><small>SKU: ${esc(line.sku)} \u00b7 ${esc(line.quantity)} \u00d7 ${money(line.unitPrice)}</small><small>Returned: ${esc(line.returnedQty ?? 0)}</small></div><strong>${money(line.lineTotal)}</strong></li>`).join('')}</ul>
+      <h3>Line items</h3><ul class="sales-lines">${linesOf(sale).map((line) => `<li><div><strong>${esc(lineName(line))}</strong><small>SKU: ${esc(lineSku(line))} \u00b7 ${esc(line.quantity ?? line.qty ?? 0)} \u00d7 ${money(line.unitPrice ?? line.price)}</small><small>Returned: ${esc(line.returnedQty ?? 0)}</small></div><strong>${money(line.lineTotal ?? ((line.quantity ?? line.qty ?? 0) * (line.unitPrice ?? line.price ?? 0)))}</strong></li>`).join('')}</ul>
       <dl class="sales-summary">${row('Subtotal', money(sale.subtotal))}${row('Discount', money(sale.discount?.amount))}
       ${row('Tax (' + (sale.tax?.rate ?? 0) + '%)', money(sale.tax?.amount))}${row('Total', `<strong>${money(sale.total)}</strong>`)}
       ${row('Payment', esc(sale.payment?.method === 'cash' ? 'Cash' : sale.payment?.method === 'card' ? 'Card' : 'Unknown'))}

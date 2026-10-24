@@ -5,7 +5,8 @@
   };
     const now=()=>new Date().toISOString();
     const safeArray=(value)=>Array.isArray(value)?value:[];
-    const normalizeProduct=(product)=>({id:String(product?.id||''),sku:String(product?.sku||''),name:String(product?.name||'Unnamed product'),category:String(product?.category||'Uncategorized'),price:Number(product?.price)||0,stock:Number.isInteger(Number(product?.stock))&&Number(product?.stock)>=0?Number(product.stock):0,supplier:product?.supplier||'',cost:Number(product?.cost)||0,lowStockThreshold:Number.isInteger(Number(product?.lowStockThreshold))&&Number(product?.lowStockThreshold)>=0?Number(product.lowStockThreshold):5,description:String(product?.description||''),status:product?.status==='archived'?'archived':'active',createdAt:product?.createdAt||now(),updatedAt:product?.updatedAt||now()});
+    const normalizeSku=(value)=>String(value??'').trim().replace(/\s+/g,' ').toUpperCase();
+    const normalizeProduct=(product)=>({id:String(product?.id||''),sku:normalizeSku(product?.sku),name:String(product?.name||'Unnamed product'),category:String(product?.category||'Uncategorized'),price:Number(product?.price)||0,stock:Number.isInteger(Number(product?.stock))&&Number(product?.stock)>=0?Number(product.stock):0,supplier:product?.supplier||'',cost:Number(product?.cost)||0,lowStockThreshold:Number.isInteger(Number(product?.lowStockThreshold))&&Number(product?.lowStockThreshold)>=0?Number(product.lowStockThreshold):5,description:String(product?.description||''),status:product?.status==='archived'?'archived':'active',createdAt:product?.createdAt||now(),updatedAt:product?.updatedAt||now()});
     const normalizeSupplier=(supplier)=>({id:String(supplier?.id||''),name:String(supplier?.name||'Unnamed supplier'),contactPerson:String(supplier?.contactPerson||''),phone:String(supplier?.phone||''),email:String(supplier?.email||''),address:String(supplier?.address||''),status:supplier?.status==='inactive'?'inactive':'active',createdAt:supplier?.createdAt||now()});
     const seedAllowed=(key)=>{try{const raw=localStorage.getItem(key);if(raw===null)return true;const parsed=JSON.parse(raw);return Array.isArray(parsed)&&parsed.length===0}catch(error){return false}};
     function read(key,fallback=[]) {
@@ -32,7 +33,7 @@
   }
 
   function generateId(prefix) {
-  const list=prefix==='P'?read(KEYS.products):prefix==='S'?read(KEYS.suppliers):read(KEYS.movements);
+  const list=safeArray(prefix==='P'?read(KEYS.products):prefix==='S'?read(KEYS.suppliers):read(KEYS.movements));
     let n=list.length+1;
     let id;
     do {
@@ -53,9 +54,15 @@
       const products=specs.map((x,i)=>( {
       id:`P-${1001+i}`,sku:x[1],name:x[0],category:x[2],price:x[3],cost:x[4],stock:x[5],lowStockThreshold:x[6],supplier:`S-${String(x[7]+1).padStart(3,'0')}`,description:'',status:'active',createdAt:now(),updatedAt:now()
       }));
-      write(KEYS.products,products);
+      if(!saveProductList(products))return;
       if(seedAllowed(KEYS.movements))write(KEYS.movements,products.map(p=>( {
-      id:`M-${String(p.id.slice(2)).padStart(4,'0')}`,productId:p.id,type:'initial',change:p.stock,stockBefore:0,stockAfter:p.stock,reason:'Seed inventory',reference:'',user:'System',date:p.createdAt
+      id:`M-${String(p.id.slice(2)).padStart(4,'0')}`,productId:p.id,productName:p.name,sku:p.sku,type:'initial',change:p.stock,stockBefore:0,stockAfter:p.stock,reason:'Seed inventory',reference:'',user:'System',date:p.createdAt
+      })))
+    }
+    if(seedAllowed(KEYS.movements)) {
+      const products=getProducts();
+      if(products.length)write(KEYS.movements,products.map((product,index)=>({
+        id:`M-SEED-${String(index+1).padStart(4,'0')}`,productId:product.id,productName:product.name,sku:product.sku,type:'initial',change:product.stock,stockBefore:0,stockAfter:product.stock,reason:'Seed inventory',reference:'',user:'System',date:product.createdAt
       })))
     }
   }
@@ -71,9 +78,42 @@
   }
 
   /** Persist the product list without changing shared storage keys. */
-  function saveProducts(list) {
+  function hasDuplicateSku(list) {
+  const seen=new Map();
+    for(const product of safeArray(list)) {
+    const sku=normalizeSku(product?.sku);
+      if(!sku)continue;
+      const existing=seen.get(sku);
+      if(existing)return {sku,first:existing,second:product};
+      seen.set(sku,product)
+    }
+    return null
+  }
+
+  function getSkuConflicts() {
+  const groups=new Map();
+    getProducts().forEach((product)=>{if(!product.sku)return;const group=groups.get(product.sku)||[];group.push(product);groups.set(product.sku,group)});
+    return Array.from(groups,([sku,products])=>({sku,products})).filter((group)=>group.products.length>1)
+  }
+
+  function validateSku(sku,id='') {
+  const normalized=normalizeSku(sku);
+    if(!normalized)return'SKU is required.';
+    const conflict=getProducts().find((product)=>product.id!==id&&normalizeSku(product.sku)===normalized);
+    return conflict?`SKU '${normalized}' is already used by product ${conflict.id} (${conflict.name}).`:null
+  }
+
+  function saveProductList(list) {
   if(!roleCan('product:write'))return false;
-  return write(KEYS.products,list)
+    if(!Array.isArray(list))return false;
+    const normalized=list.map(normalizeProduct);
+    if(hasDuplicateSku(normalized))return false;
+    return write(KEYS.products,normalized)
+  }
+
+  /** Public compatibility wrapper; all product-list writes still pass the SKU guard. */
+  function saveProducts(list) {
+    return saveProductList(list)
   }
 
   /** Return normalized suppliers with safe defaults. */
@@ -86,8 +126,8 @@
 
     };
     if(!String(d.name||'').trim())return'Product name is required.';
-    if(!String(d.sku||'').trim())return'SKU is required.';
-    if(getProducts().some(p=>p.sku.toLowerCase()===String(d.sku).trim().toLowerCase()&&p.id!==id))return'SKU must be unique.';
+    const skuError=validateSku(d.sku,id);
+    if(skuError)return skuError;
     if(!(Number(d.price)>0))return'Price must be greater than zero.';
     if(Number(d.cost)<0||!Number.isFinite(Number(d.cost)))return'Cost must be zero or greater.';
     if(!Number.isInteger(Number(d.stock))||Number(d.stock)<0)return'Stock must be a whole number.';
@@ -103,14 +143,14 @@
     ok:false,error
     };
     const product= {
-    ...data,id:generateId('P'),price:Number(data.price),cost:Number(data.cost||0),stock:Number(data.stock||0),lowStockThreshold:Number(data.lowStockThreshold||0),status:'active',createdAt:now(),updatedAt:now()
+    ...data,id:generateId('P'),sku:normalizeSku(data.sku),price:Number(data.price),cost:Number(data.cost||0),stock:Number(data.stock||0),lowStockThreshold:Number(data.lowStockThreshold||0),status:'active',createdAt:now(),updatedAt:now()
     };
     const list=getProducts();
     list.push(product);
-    saveProducts(list);
-    const movements=read(KEYS.movements);
+    if(!saveProducts(list))return {ok:false,error:'Product could not be saved.'};
+    const movements=safeArray(read(KEYS.movements));
     movements.push( {
-    id:generateId('M'),productId:product.id,type:'initial',change:product.stock,stockBefore:0,stockAfter:product.stock,reason:'Initial stock',reference:'',user:getCurrentUser().name,date:now()
+    id:generateId('M'),productId:product.id,productName:product.name,sku:product.sku,type:'initial',change:product.stock,stockBefore:0,stockAfter:product.stock,reason:'Initial stock',reference:'',user:getCurrentUser().name,date:now()
     });
     write(KEYS.movements,movements);
     return {
@@ -130,10 +170,10 @@
     ok:false,error
     };
     const product= {
-    ...old,...data,id,price:Number(data.price),cost:Number(data.cost||0),stock:old.stock,lowStockThreshold:Number(data.lowStockThreshold||0),updatedAt:now()
+    ...old,...data,id,sku:normalizeSku(data.sku),price:Number(data.price),cost:Number(data.cost||0),stock:old.stock,lowStockThreshold:Number(data.lowStockThreshold||0),updatedAt:now()
     };
     const list=getProducts().map(p=>p.id===id?product:p);
-    saveProducts(list);
+    if(!saveProducts(list))return {ok:false,error:'Product could not be saved.'};
     return {
     ok:true,data:product
     }
@@ -155,7 +195,7 @@
   const list=getProducts().map(p=>p.id===id? {
     ...p,...data,updatedAt:now()
     }:p);
-    saveProducts(list);
+    if(!saveProducts(list))return {ok:false,error:'Product could not be saved.'};
     return {
     ok:true,data:getProductById(id)
     }
@@ -168,7 +208,15 @@
     if(!p)return {
     ok:false,error:'Product not found.'
     };
-    saveProducts(getProducts().filter(x=>x.id!==id));
+    const movements=safeArray(read(KEYS.movements));
+    const date=now();
+    const finalMovement={id:generateId('M'),productId:p.id,productName:p.name,sku:p.sku,type:'delete',change:0,stockBefore:p.stock,stockAfter:p.stock,reason:'Product deleted',reference:p.id,user:getCurrentUser().name,date};
+    const previous=getProducts();
+    if(!saveProducts(previous.filter(x=>x.id!==id)))return {ok:false,error:'Product could not be deleted.'};
+    if(!write(KEYS.movements,[...movements,finalMovement])) {
+      write(KEYS.products,previous);
+      return {ok:false,error:'Product could not be deleted.'};
+    }
     return {
     ok:true,data:p
     }
@@ -271,9 +319,9 @@
     const nextProducts=getProducts().map((product)=>product.id===productId?{...product,stock:before+delta,updatedAt:now()}:product);
     if(!write(KEYS.products,nextProducts))return {ok:false,error:'Stock could not be saved.'};
     const movement= {
-    id:generateId('M'),productId,type,change:delta,stockBefore:before,stockAfter:before+delta,reason:reason||'',reference:reference||'',user:user.name,date:now()
+    id:generateId('M'),productId,productName:p.name,sku:p.sku,type,change:delta,stockBefore:before,stockAfter:before+delta,reason:reason||'',reference:reference||'',user:user.name,date:now()
     };
-    const list=read(KEYS.movements);
+    const list=safeArray(read(KEYS.movements));
     list.push(movement);
     write(KEYS.movements,list);
     return {
@@ -310,7 +358,7 @@
     const updates=[];
     for(const line of lines){const quantity=Number(line.quantity);const product=products.find((item)=>item.id===line.productId);if(!product||!Number.isInteger(quantity)||quantity<1)return {ok:false,error:'Every delivery line needs a valid product and whole-number quantity.'};updates.push({product,before:product.stock,after:product.stock+quantity,quantity});}
     const nextProducts=products.map((product)=>{const update=updates.find((item)=>item.product.id===product.id);return update?{...product,stock:update.after,updatedAt:now()}:product;});
-    const nextMovements=updates.map((update)=>({id:generateId('M'),productId:update.product.id,type:'receive',change:update.quantity,stockBefore:update.before,stockAfter:update.after,reason:'Delivery received',reference:reference||'',user:getCurrentUser().name,date}));
+    const nextMovements=updates.map((update)=>({id:generateId('M'),productId:update.product.id,productName:update.product.name,sku:update.product.sku,type:'receive',change:update.quantity,stockBefore:update.before,stockAfter:update.after,reason:'Delivery received',reference:reference||'',user:getCurrentUser().name,date}));
     if(!write(KEYS.products,nextProducts)||!write(KEYS.movements,[...movements,...nextMovements]))return {ok:false,error:'The delivery could not be saved.'};
     return {ok:true,data:nextMovements}
   }
@@ -327,19 +375,32 @@
   function getMovements(filter= {
 
   }) {
-  return safeArray(read(KEYS.movements)).filter(m=>!filter.productId||m.productId===filter.productId).filter(m=>!filter.type||m.type===filter.type).filter(m=>!filter.user||String(m.user||'').toLowerCase().includes(filter.user.toLowerCase())).sort((a,b)=>new Date(b.date)-new Date(a.date))
+  filter=filter||{};
+  const products=getProducts();
+  const productById=new Map(products.map((product)=>[product.id,product]));
+  const raw=safeArray(read(KEYS.movements));
+  let changed=false;
+  const enriched=raw.map((movement)=>{
+  const product=productById.get(movement.productId);
+    if(!movement.productName&&product){movement={...movement,productName:product.name};changed=true}
+    if(!movement.sku&&product){movement={...movement,sku:product.sku};changed=true}
+    if(!movement.productName&&!product)movement={...movement,productName:`Deleted product (${movement.productId})`,productDeleted:true};
+    return movement
+  });
+    if(changed)try{localStorage.setItem(KEYS.movements,JSON.stringify(enriched))}catch(error){}
+  return enriched.filter(m=>!filter.productId||m.productId===filter.productId).filter(m=>!filter.type||m.type===filter.type).filter(m=>!filter.user||String(m.user||'').toLowerCase().includes(String(filter.user).toLowerCase())).sort((a,b)=>new Date(b.date)-new Date(a.date))
   }
 
   /** Return dashboard totals for active inventory. */
   function getInventorySummary() {
-  const products=getProducts();
+  const products=getProducts().filter((product)=>product.status==='active');
     return {totalProducts:products.filter((product)=>product.status==='active').length,totalUnits:products.reduce((sum,product)=>sum+product.stock,0),lowStockCount:products.filter((product)=>getStockStatus(product)==='low').length,outOfStockCount:products.filter((product)=>getStockStatus(product)==='out').length,inventoryValue:products.reduce((sum,product)=>sum+product.stock*product.cost,0)}
   }
 
   /** Return stock and value totals grouped by category. */
   function getStockByCategory() {
   const groups={};
-    getProducts().forEach((product)=>{const category=product.category;groups[category]??={category,products:0,units:0,value:0};groups[category].products+=1;groups[category].units+=product.stock;groups[category].value+=product.stock*product.cost;});
+    getProducts().filter((product)=>product.status==='active').forEach((product)=>{const category=product.category;groups[category]??={category,products:0,units:0,value:0};groups[category].products+=1;groups[category].units+=product.stock;groups[category].value+=product.stock*product.cost;});
     return Object.values(groups)
   }
 
@@ -361,7 +422,7 @@
   }  seedDataIfEmpty();
   window.addEventListener('storage',()=>window.dispatchEvent(new CustomEvent('voltix:data-changed')));
   window.VoltixInventory= {
-  getProducts,getProductById,saveProducts,addProduct,updateProduct,archiveProduct,deleteProduct,getSuppliers,addSupplier,updateSupplier,deleteSupplier,adjustStock,reduceStock,increaseStock,receiveDelivery,getLowStockProducts,getStockStatus,getMovements,getInventorySummary,getStockByCategory,getSupplierProductCounts,generateId,seedDataIfEmpty,formatCurrency,can,getCurrentUser,KEYS
+  getProducts,getProductById,saveProducts,addProduct,updateProduct,archiveProduct,deleteProduct,getSuppliers,addSupplier,updateSupplier,deleteSupplier,adjustStock,reduceStock,increaseStock,receiveDelivery,getLowStockProducts,getStockStatus,getMovements,getInventorySummary,getStockByCategory,getSupplierProductCounts,getSkuConflicts,validateSku,normalizeSku,generateId,seedDataIfEmpty,formatCurrency,can,getCurrentUser,KEYS
   };
 
 })(window);
