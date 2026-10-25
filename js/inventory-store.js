@@ -236,7 +236,7 @@
     };
     const list=getSuppliers();
     list.push(s);
-    write(KEYS.suppliers,list);
+    if(!write(KEYS.suppliers,list))return {ok:false,error:'Supplier could not be saved.'};
     return {
     ok:true,data:s
     }

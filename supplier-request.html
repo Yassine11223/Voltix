@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Supplier Request | VOLTIX</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/products-inventory.css">
+  <link rel="stylesheet" href="css/suppliers.css">
+  <script src="js/supplier-request-store.js" defer></script>
+  <script src="js/supplier-request.js" defer></script>
+</head>
+<body class="app-page inventory-page supplier-request-page">
+  <a class="skip-link" href="#request-type">Skip to request form</a>
+  <header class="supplier-public-header">
+    <a class="app-brand" href="index.html" aria-label="Voltix home"><span class="app-brand-mark" aria-hidden="true"></span>VOLTIX<span class="brand-dot">.</span></a>
+    <a class="supplier-employee-link" href="index.html">Employee sign in</a>
+  </header>
+  <main class="supplier-public-content">
+    <div class="page-intro"><div><p class="eyebrow">WORK WITH VOLTIX</p><h1>Supplier Request</h1><p>Introduce your company or offer electronics for our store.</p></div></div>
+    <div class="supplier-notice"><strong>How it works</strong><p>Submit your details for our team to review. No supplier account is needed. Approval does not confirm a delivery; stock is recorded separately when an authorized employee receives it.</p></div>
+    <noscript><p class="supplier-feedback" data-state="error">Enable JavaScript to submit a supplier request.</p></noscript>
+    <div id="request-feedback" class="supplier-feedback" role="status" aria-live="polite" tabindex="-1" hidden></div>
+    <form id="supplier-request-form" class="panel supplier-public-form">
+      <p class="subtle">All fields are required except additional notes.</p>
+      <div class="field request-type-field"><label for="request-type">Request type</label><select id="request-type" name="type" required><option value="supplier">Become a Supplier</option><option value="products">Offer Products</option></select></div>
+      <fieldset class="supplier-fieldset"><legend>Company &amp; contact</legend>
+        <div class="form-grid">
+          <div class="field"><label for="company-name">Company name</label><input id="company-name" name="companyName" autocomplete="organization" maxlength="120" required></div>
+          <div class="field"><label for="contact-person">Contact person</label><input id="contact-person" name="contactPerson" autocomplete="name" maxlength="100" required></div>
+          <div class="field"><label for="supplier-email">Email</label><input id="supplier-email" name="email" type="email" autocomplete="email" maxlength="254" required></div>
+          <div class="field"><label for="supplier-phone">Phone</label><input id="supplier-phone" name="phone" type="tel" autocomplete="tel" placeholder="+20 100 000 0000" maxlength="30" aria-describedby="phone-hint" required><span id="phone-hint" class="hint">7 to 15 digits; spaces, parentheses and hyphens are accepted.</span></div>
+          <div class="field full"><label for="supplier-address">Address</label><textarea id="supplier-address" name="address" autocomplete="street-address" maxlength="500" required></textarea></div>
+        </div>
+      </fieldset>
+      <fieldset id="product-fields" class="supplier-fieldset" hidden disabled><legend>Product offer</legend>
+        <div class="form-grid">
+          <div class="field"><label for="product-name">Product name</label><input id="product-name" name="productName" maxlength="160" required></div>
+          <div class="field"><label for="product-category">Category</label><input id="product-category" name="category" list="product-categories" maxlength="80" required><datalist id="product-categories"><option value="Smartphones"><option value="Laptops"><option value="Tablets"><option value="Accessories"><option value="Audio"><option value="Gaming"><option value="Smart Home"><option value="Cameras"><option value="Storage"><option value="Networking"></datalist></div>
+          <div class="field"><label for="product-quantity">Quantity</label><input id="product-quantity" name="quantity" type="number" inputmode="numeric" min="1" max="1000000" step="1" required></div>
+          <div class="field"><label for="product-unit-price">Unit price (EGP)</label><input id="product-unit-price" name="unitPrice" type="number" inputmode="decimal" min="0.01" max="1000000000" step="0.01" required></div>
+          <div class="field full"><label for="expected-delivery-date">Expected delivery date</label><input id="expected-delivery-date" name="expectedDeliveryDate" type="date" max="9999-12-31" required></div>
+        </div>
+      </fieldset>
+      <div class="field"><label for="additional-notes">Additional notes <span class="subtle">(optional)</span></label><textarea id="additional-notes" name="notes" maxlength="2000" placeholder="Tell us about your company or product offer."></textarea></div>
+      <div class="supplier-submit-row"><p class="subtle">Phase 1 demo: requests are saved in this browser. Admin review must use the same browser and site address.</p><button id="submit-request" class="btn btn-primary" type="submit" disabled>Submit Request</button></div>
+    </form>
+    <footer class="supplier-public-footer">VOLTIX &copy; Store operations <span>PHASE 1 DEMO</span></footer>
+  </main>
+</body>
+</html>

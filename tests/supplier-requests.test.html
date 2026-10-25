@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Voltix Supplier Request Tests</title>
+  <style>body{font:14px system-ui,sans-serif;padding:24px;background:#f5f9ff;color:#1b2b3f}li{margin:8px 0}.pass{color:#168458}.fail{color:#b42336}</style>
+</head>
+<body>
+  <h1>Supplier request storage &amp; business rule tests</h1>
+  <p>Serve Voltix over HTTP and open this page. Close other Voltix tabs before running. Original request, inventory, supplier records and session are restored afterward.</p>
+  <ol id="results"></ol>
+  <script>
+    window.voltixRequestTestBackup = {
+      data: Object.fromEntries(['voltix_products', 'voltix_suppliers', 'voltix_stock_movements', 'voltix_supplier_requests'].map((key) => [key, localStorage.getItem(key)])),
+      session: sessionStorage.getItem('voltix.session')
+    };
+    sessionStorage.setItem('voltix.session', JSON.stringify({ id: 'user-admin', name: 'Admin', email: 'admin@voltix.test', role: 'admin' }));
+  </script>
+  <script src="../js/inventory-store.js"></script>
+  <script src="../js/supplier-request-store.js"></script>
+  <script>
+    (function () {
+      const tests = [];
+      const assert = (name, condition) => { tests.push({ name, condition: Boolean(condition) }); };
+      const requests = window.VoltixSupplierRequests;
+      const inventory = window.VoltixInventory;
+      const setRole = (role) => role ? sessionStorage.setItem('voltix.session', JSON.stringify({ id: `user-${role}`, name: role, email: `${role}@voltix.test`, role })) : sessionStorage.removeItem('voltix.session');
+      const originalSetItem = Storage.prototype.setItem;
+      const snapshot = () => JSON.stringify(['voltix_products', 'voltix_stock_movements', 'voltix_sales', 'voltix.sales', 'voltix_returns'].map((key) => localStorage.getItem(key)));
+      const application = { type: 'supplier', companyName: 'QA Supply ' + Date.now(), contactPerson: 'QA Contact', email: 'requests-qa@example.test', phone: '+20 100 000 0000', address: 'Cairo, Egypt', notes: '<img src=x onerror="window.qaInjected=true">' };
+      const offer = { ...application, type: 'products', productName: 'QA Headphones', category: 'Audio', quantity: '12', unitPrice: '499.95', expectedDeliveryDate: requests.today() };
+      try {
+        localStorage.setItem(requests.KEY, '[]');
+        const beforeInventory = snapshot();
+        const suppliersBefore = localStorage.getItem(inventory.KEYS.suppliers);
+        setRole(null);
+        const pending = requests.submit({ ...application, status: 'Approved', supplierId: 'fake', reviewedBy: 'fake', id: 'fake' });
+        assert('Anonymous supplier application succeeds with Pending status', pending.ok && pending.data.status === 'Pending');
+        assert('Client cannot set request identity or reviewer fields', pending.data.id !== 'fake' && pending.data.supplierId === '' && pending.data.reviewedBy === '');
+        assert('Request gets a timestamp and persisted unique ID', Number.isFinite(Date.parse(pending.data.submittedAt)) && JSON.parse(localStorage.getItem(requests.KEY))[0].id === pending.data.id);
+        assert('Submission does not create a supplier', localStorage.getItem(inventory.KEYS.suppliers) === suppliersBefore);
+        assert('Anonymous users cannot list or review requests', !requests.list().ok && !requests.review(pending.data.id, 'Approved').ok);
+        const raw = localStorage.getItem(requests.KEY);
+        for (const field of ['companyName', 'contactPerson', 'email', 'phone', 'address']) assert(`Rejects blank ${field}`, !requests.submit({ ...application, [field]: '  ' }).ok);
+        assert('Rejects unknown request type', !requests.submit({ ...application, type: 'other' }).ok);
+        assert('Rejects invalid email and phone', !requests.submit({ ...application, email: 'bad@' }).ok && !requests.submit({ ...application, phone: 'abc1234567' }).ok);
+        assert('Rejects excessive notes', !requests.submit({ ...application, notes: 'x'.repeat(2001) }).ok);
+        for (const field of ['productName', 'category', 'quantity', 'unitPrice', 'expectedDeliveryDate']) assert(`Product offers require ${field}`, !requests.submit({ ...offer, [field]: '' }).ok);
+        assert('Rejects zero, negative and fractional quantities', [0, -1, 1.5, Infinity, 1000001].every((quantity) => !requests.submit({ ...offer, quantity }).ok));
+        assert('Rejects invalid or excessively precise unit prices', [0, -1, 'NaN', '1.001', 'Infinity', '1000000001'].every((unitPrice) => !requests.submit({ ...offer, unitPrice }).ok));
+        assert('Rejects past and impossible delivery dates', !requests.submit({ ...offer, expectedDeliveryDate: '2000-01-01' }).ok && !requests.submit({ ...offer, expectedDeliveryDate: '2099-02-30' }).ok);
+        assert('Invalid submissions leave request storage unchanged', localStorage.getItem(requests.KEY) === raw);
+        const productOffer = requests.submit(offer);
+        assert('Valid product offer stores numbers and a unique ID', productOffer.ok && productOffer.data.quantity === 12 && productOffer.data.unitPrice === 499.95 && productOffer.data.id !== pending.data.id);
+        const stripped = requests.submit({ ...application, productName: 'hidden', quantity: 5, unitPrice: 10 });
+        assert('Applications discard hidden product values', stripped.ok && stripped.data.productName === '' && stripped.data.quantity === null && stripped.data.unitPrice === null);
+        setRole('staff');
+        const beforeDenied = localStorage.getItem(requests.KEY);
+        assert('Staff cannot read or approve requests', !requests.list().ok && !requests.review(pending.data.id, 'Approved').ok);
+        assert('Staff cannot reject requests', !requests.review(pending.data.id, 'Rejected').ok && localStorage.getItem(requests.KEY) === beforeDenied);
+        setRole('admin');
+        assert('Admin can read saved requests', requests.list().ok && requests.list().data.length === 3);
+        const approved = requests.review(pending.data.id, 'Approved');
+        assert('Application approval creates a linked supplier', approved.ok && approved.createdSupplier && inventory.getSuppliers().some((supplier) => supplier.id === approved.data.supplierId && supplier.name === application.companyName));
+        assert('Approval stores reviewer, timestamp and status', approved.data.reviewedBy === 'user-admin' && Number.isFinite(Date.parse(approved.data.reviewedAt)) && requests.list().data.find((request) => request.id === pending.data.id).status === 'Approved');
+        const supplierCount = inventory.getSuppliers().length;
+        const linked = requests.review(stripped.data.id, 'Approved');
+        assert('Repeated application links the existing supplier', linked.ok && !linked.createdSupplier && linked.data.supplierId === approved.data.supplierId && inventory.getSuppliers().length === supplierCount);
+        const byName = requests.submit({ ...application, companyName: '  ' + application.companyName.toUpperCase().replace(' ', '   ') + ' ', email: 'different@example.test', phone: '+20 100 000 0011' });
+        assert('Duplicate matching normalizes name case and whitespace', requests.review(byName.data.id, 'Approved').data.supplierId === approved.data.supplierId && inventory.getSuppliers().length === supplierCount);
+        const byEmail = requests.submit({ ...application, companyName: 'Renamed QA Company', email: '  ' + application.email.toUpperCase() + '  ', phone: '+20 100 000 0012' });
+        assert('Duplicate matching normalizes email case', requests.review(byEmail.data.id, 'Approved').data.supplierId === approved.data.supplierId && inventory.getSuppliers().length === supplierCount);
+        inventory.updateSupplier(approved.data.supplierId, { status: 'inactive' });
+        const inactiveRequest = requests.submit(application);
+        assert('Linking an inactive supplier preserves its status', requests.review(inactiveRequest.data.id, 'Approved').ok && inventory.getSuppliers().find((supplier) => supplier.id === approved.data.supplierId).status === 'inactive');
+        const second = inventory.addSupplier({ name: 'Second QA Supplier', email: 'second-qa@example.test' });
+        const ambiguous = requests.submit({ ...application, email: 'second-qa@example.test' });
+        assert('Ambiguous matches require an explicit existing supplier', !requests.review(ambiguous.data.id, 'Approved').ok && requests.review(ambiguous.data.id, 'Approved', second.data.id).ok);
+        const manual = requests.submit({ ...application, companyName: 'Separate Trading Name', email: 'separate@example.test' });
+        assert('Admin can explicitly link a trading name to an existing supplier', requests.review(manual.data.id, 'Approved', second.data.id).data.supplierId === second.data.id);
+        const beforeOfferSuppliers = localStorage.getItem(inventory.KEYS.suppliers);
+        const existingOffer = requests.review(productOffer.data.id, 'Approved');
+        assert('Product offer approval links the existing supplier without changing its details', existingOffer.ok && !existingOffer.createdSupplier && existingOffer.data.supplierId === approved.data.supplierId && localStorage.getItem(inventory.KEYS.suppliers) === beforeOfferSuppliers);
+        const newOfferData = { ...offer, companyName: 'New Product Offer QA Company', contactPerson: 'New Offer Contact', email: 'new-offer@example.test', phone: '+20 100 000 0081', address: 'Giza, Egypt' };
+        const newOffer = requests.submit(newOfferData);
+        const newOfferApproved = requests.review(newOffer.data.id, 'Approved');
+        const offerSupplier = inventory.getSuppliers().find((supplier) => supplier.id === newOfferApproved.data.supplierId);
+        assert('New-company product offer approval creates a linked supplier', newOfferApproved.ok && newOfferApproved.createdSupplier && inventory.getSuppliers().length === supplierCount + 2);
+        assert('Offer supplier includes every submitted company/contact field', offerSupplier && ['contactPerson', 'email', 'phone', 'address'].every((key) => offerSupplier[key] === newOfferData[key]) && offerSupplier.name === newOfferData.companyName);
+        assert('Product offer approval and supplier link persist in storage', JSON.parse(localStorage.getItem(requests.KEY)).some((request) => request.id === newOffer.data.id && request.status === 'Approved' && request.supplierId === offerSupplier.id) && JSON.parse(localStorage.getItem(inventory.KEYS.suppliers)).some((supplier) => supplier.id === offerSupplier.id));
+        for (const type of ['supplier', 'products']) {
+          for (const phone of ['+20 (100) 000-0000', '00201000000000', '01000000000']) {
+            const contactMatch = requests.submit({ ...offer, type, companyName: 'Phone-matched Trading Name', email: 'phone-match@example.test', phone });
+            const countBefore = inventory.getSuppliers().length;
+            const matched = requests.review(contactMatch.data.id, 'Approved');
+            assert(`${type} links by normalized phone ${phone} without duplicating a supplier`, matched.ok && !matched.createdSupplier && matched.data.supplierId === approved.data.supplierId && inventory.getSuppliers().length === countBefore);
+          }
+        }
+        const unicodeName = requests.submit({ ...offer, companyName: application.companyName.replace(/[!-~]/g, (character) => String.fromCharCode(character.charCodeAt(0) + 0xfee0)), email: 'unicode-qa@example.test', phone: '+20 100 000 0082' });
+        assert('Product offer matches Unicode-equivalent company names', requests.review(unicodeName.data.id, 'Approved').data.supplierId === approved.data.supplierId);
+        const sharedPerson = requests.submit({ ...offer, companyName: 'Unrelated Company At Shared Address', email: 'shared-address@example.test', phone: '+20 100 000 0083' });
+        assert('A shared contact person and address alone do not cause an automatic link', requests.matchingSuppliers(sharedPerson.data).length === 0);
+        const ambiguousOffer = requests.submit({ ...offer, email: 'new-offer@example.test', phone: '+20 100 000 0084' });
+        assert('Product offers with conflicting name/contact matches require a choice', !requests.review(ambiguousOffer.data.id, 'Approved').ok && requests.review(ambiguousOffer.data.id, 'Approved', offerSupplier.id).data.supplierId === offerSupplier.id);
+        const beforeRejectSuppliers = localStorage.getItem(inventory.KEYS.suppliers);
+        const rejected = requests.submit({ ...application, companyName: 'Rejected QA Company', email: 'reject-qa@example.test' });
+        assert('Admin can reject and persist a request', requests.review(rejected.data.id, 'Rejected').ok && JSON.parse(localStorage.getItem(requests.KEY)).find((request) => request.id === rejected.data.id).status === 'Rejected');
+        assert('Rejected application does not create a supplier', localStorage.getItem(inventory.KEYS.suppliers) === beforeRejectSuppliers);
+        assert('Already reviewed requests cannot change status', !requests.review(pending.data.id, 'Rejected').ok && !requests.review(rejected.data.id, 'Approved').ok);
+        assert('Missing requests and invalid review statuses fail', !requests.review('missing', 'Approved').ok && !requests.review(pending.data.id, 'Pending').ok);
+        const persisted = localStorage.getItem(requests.KEY);
+        localStorage.setItem(requests.KEY, '{broken');
+        assert('Malformed request storage reports errors and is preserved', !requests.list().ok && !requests.submit(application).ok && localStorage.getItem(requests.KEY) === '{broken');
+        localStorage.setItem(requests.KEY, persisted);
+        const retryRequest = requests.submit({ ...application, companyName: 'Retry QA Company', email: 'retry-qa@example.test', phone: '+20 100 000 0091' });
+        Storage.prototype.setItem = function (key, value) { if (key === requests.KEY) throw new DOMException('QA full storage', 'QuotaExceededError'); return originalSetItem.call(this, key, value); };
+        assert('Storage failure does not claim successful submission', !requests.submit(application).ok);
+        const failedReview = requests.review(retryRequest.data.id, 'Approved');
+        assert('Failed status write keeps request Pending and explains saved supplier', !failedReview.ok && failedReview.error.includes('supplier was saved') && requests.list().data.find((request) => request.id === retryRequest.data.id).status === 'Pending');
+        Storage.prototype.setItem = originalSetItem;
+        const countBeforeRetry = inventory.getSuppliers().length;
+        assert('Retry links the saved supplier without a duplicate', requests.review(retryRequest.data.id, 'Approved').ok && inventory.getSuppliers().length === countBeforeRetry);
+        for (const [index, type] of ['supplier', 'products'].entries()) {
+          const cannotCreate = requests.submit({ ...offer, type, companyName: `Cannot Save QA Company ${type}`, email: `save-fail-${type}@example.test`, phone: `+20 100 000 009${index + 2}` });
+          const suppliersBeforeFailure = localStorage.getItem(inventory.KEYS.suppliers);
+          Storage.prototype.setItem = function (key, value) { if (key === inventory.KEYS.suppliers) throw new DOMException('QA full storage', 'QuotaExceededError'); return originalSetItem.call(this, key, value); };
+          const failed = requests.review(cannotCreate.data.id, 'Approved');
+          assert(`Failed supplier creation keeps ${type} Pending with a useful error`, !failed.ok && failed.error.includes('supplier could not be created') && failed.error.includes('still Pending') && requests.list().data.find((request) => request.id === cannotCreate.data.id).status === 'Pending' && localStorage.getItem(inventory.KEYS.suppliers) === suppliersBeforeFailure);
+          Storage.prototype.setItem = originalSetItem;
+          assert(`${type} approval succeeds after supplier storage recovers`, requests.review(cannotCreate.data.id, 'Approved').ok);
+        }
+        assert('All submissions and reviews preserve product stock, movements, POS and returns data', snapshot() === beforeInventory);
+      } catch (error) {
+        assert('Unexpected error: ' + error.message, false);
+      } finally {
+        Storage.prototype.setItem = originalSetItem;
+        Object.entries(window.voltixRequestTestBackup.data).forEach(([key, value]) => value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value));
+        const session = window.voltixRequestTestBackup.session;
+        if (session === null) sessionStorage.removeItem('voltix.session'); else sessionStorage.setItem('voltix.session', session);
+        delete window.voltixRequestTestBackup;
+      }
+      tests.forEach((test) => { const item = document.createElement('li'); item.className = test.condition ? 'pass' : 'fail'; item.textContent = `${test.condition ? 'PASS' : 'FAIL'} — ${test.name}`; document.getElementById('results').append(item); });
+    }());
+  </script>
+</body>
+</html>
